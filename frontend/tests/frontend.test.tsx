@@ -5,6 +5,7 @@ import { DashboardView } from "../components/DashboardView";
 import { InsightDetailView } from "../components/InsightDetailView";
 import { InsightsFeed } from "../components/InsightsFeed";
 import { UploadPanel } from "../components/UploadPanel";
+import { ProviderConnections } from "../components/ProviderConnections";
 import type { AnalysisSummary, Insight, InsightDetailResponse, KpiResponse, SegmentsResponse } from "../lib/api";
 
 const summary: AnalysisSummary = {
@@ -122,4 +123,32 @@ it("renders insight detail and deterministic explanation", () => {
   expect(screen.getAllByText("US Mastercard failures increased.").length).toBeGreaterThan(0);
   expect(screen.getByText("£500.00")).toBeInTheDocument();
   expect(screen.getByText("Review issuer-decline patterns.")).toBeInTheDocument();
+});
+
+it("renders Stripe as unavailable until sandbox configuration exists", async () => {
+  render(<ProviderConnections loader={vi.fn().mockResolvedValue({ providers: [{ provider: "STRIPE", status: "NOT_CONNECTED", configured: false }] })} />);
+  expect(await screen.findByText("Not connected")).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Connect Stripe" })).toBeDisabled();
+  expect(screen.getByText(/Configure Stripe App sandbox variables/)).toBeInTheDocument();
+});
+
+it("syncs a connected Stripe account and links to its analysis", async () => {
+  const connection = {
+    provider: "STRIPE" as const,
+    status: "CONNECTED" as const,
+    configured: true,
+    provider_account_id: "acct_test",
+    transactions_imported: 12,
+    webhook_status: "CONFIGURED",
+  };
+  const loader = vi.fn().mockResolvedValue({ providers: [connection] });
+  const synchronizer = vi.fn().mockResolvedValue({
+    sync_job: { id: "sync_1", status: "COMPLETED", records_received: 12, records_normalised: 12, analysis_id: "analysis_stripe", errors: [] },
+  });
+  const user = userEvent.setup();
+  render(<ProviderConnections loader={loader} synchronizer={synchronizer} />);
+  expect(await screen.findByText("Connected")).toBeInTheDocument();
+  await user.click(screen.getByRole("button", { name: "Sync now" }));
+  expect(await screen.findByText("12 transactions normalised")).toBeInTheDocument();
+  expect(screen.getByRole("link", { name: /View analysis/ })).toHaveAttribute("href", "/analysis/analysis_stripe");
 });

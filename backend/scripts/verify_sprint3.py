@@ -39,6 +39,7 @@ def main() -> None:
     args = parse_args()
     repository = InMemoryAnalysisRepository()
     client = TestClient(create_app(repository=repository))
+    client.headers.update({"X-PayLens-Dev-Key": "paylens-sprint3-verification-key"})
 
     upload_started = perf_counter()
     with args.input.open("rb") as source:
@@ -145,4 +146,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-

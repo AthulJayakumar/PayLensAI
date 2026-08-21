@@ -13,7 +13,10 @@ export default function Home() {
           <span className="brand-mark">P</span>
           <span>PAYLENS</span>
         </Link>
-        <span className="local-badge">Local prototype</span>
+        <nav className="landing-nav">
+          <Link className="secondary-button" href="/providers">Payment providers</Link>
+          <span className="local-badge">Local prototype</span>
+        </nav>
       </header>
 
       <section className="hero-grid">

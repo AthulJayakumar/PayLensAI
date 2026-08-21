@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, File, UploadFile, status
 
-from app.api.dependencies import get_analysis_service, require_analysis
+from app.api.auth import AuthenticatedMerchant
+from app.api.dependencies import get_analysis_service, get_current_merchant, require_analysis
 from app.api.repositories import AnalysisRecord
 from app.api.services.analysis import AnalysisService
 
@@ -31,12 +32,12 @@ def analysis_summary(record: AnalysisRecord) -> dict:
 async def upload_analysis(
     file: UploadFile = File(...),
     service: AnalysisService = Depends(get_analysis_service),
+    merchant: AuthenticatedMerchant = Depends(get_current_merchant),
 ) -> dict:
-    record = await service.create_analysis(file)
+    record = await service.create_analysis(file, merchant)
     return analysis_summary(record)
 
 
 @router.get("/{analysis_id}")
 def get_analysis(record: AnalysisRecord = Depends(require_analysis)) -> dict:
     return analysis_summary(record)
-

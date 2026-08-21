@@ -14,6 +14,7 @@ from fastapi import UploadFile
 from app.analytics.csv_loader import CSVTransactionValidationError, load_transactions_csv
 from app.analytics.kpis import calculate_kpis
 from app.analytics.pipeline import AnalysisResult, ProcessingTimings
+from app.api.auth import AuthenticatedMerchant
 from app.api.errors import APIError
 from app.api.repositories import (
     AnalysisPerformance,
@@ -51,7 +52,9 @@ class AnalysisService:
         self.max_upload_bytes = max_upload_bytes
         self.insight_engine = insight_engine or InsightEngine()
 
-    async def create_analysis(self, upload: UploadFile) -> AnalysisRecord:
+    async def create_analysis(
+        self, upload: UploadFile, merchant: AuthenticatedMerchant
+    ) -> AnalysisRecord:
         request_started = perf_counter()
         filename = Path(upload.filename or "").name
         if not filename.lower().endswith(".csv"):
@@ -103,7 +106,10 @@ class AnalysisService:
 
             validation_started = perf_counter()
             try:
-                transactions = load_transactions_csv(temporary_path)
+                transactions = [
+                    transaction.model_copy(update={"merchant_id": merchant.merchant_id})
+                    for transaction in load_transactions_csv(temporary_path)
+                ]
             except (CSVTransactionValidationError, csv.Error, UnicodeDecodeError) as error:
                 raise APIError(
                     status_code=422,
@@ -142,6 +148,7 @@ class AnalysisService:
             )
             record = AnalysisRecord(
                 analysis_id=_analysis_id(),
+                merchant_id=merchant.merchant_id,
                 filename=filename,
                 file_size=size,
                 created_at=datetime.now(timezone.utc),
@@ -164,3 +171,45 @@ class AnalysisService:
             if temporary_path is not None:
                 temporary_path.unlink(missing_ok=True)
 
+    def create_from_transactions(
+        self,
+        transactions,
+        merchant: AuthenticatedMerchant,
+        *,
+        filename: str,
+        source: str,
+    ) -> AnalysisRecord:
+        """Run the verified engine for provider-normalised canonical transactions."""
+        started = perf_counter()
+        transactions = [item.model_copy(update={"merchant_id": merchant.merchant_id}) for item in transactions]
+        if not transactions:
+            raise APIError(status_code=422, code="EMPTY_DATASET", message="No canonical provider transactions are available for analysis.")
+        current_start, current_end = _comparison_window(transactions)
+        kpi_started = perf_counter()
+        kpis = calculate_kpis(transactions)
+        kpi_finished = perf_counter()
+        insight_started = perf_counter()
+        insights = self.insight_engine.analyse(transactions, current_start=current_start, current_end=current_end)
+        insight_finished = perf_counter()
+        record = AnalysisRecord(
+            analysis_id=_analysis_id(), merchant_id=merchant.merchant_id, status="COMPLETED", source=source,
+            filename=filename, file_size=0, created_at=datetime.now(timezone.utc),
+            current_start=current_start, current_end=current_end, transactions=transactions,
+            result=AnalysisResult(
+                transaction_count=len(transactions), kpis=kpis, insights=insights,
+                timings=ProcessingTimings(
+                    data_loading_seconds=0,
+                    kpi_calculation_seconds=kpi_finished - kpi_started,
+                    insight_detection_seconds=insight_finished - insight_started,
+                    total_processing_seconds=insight_finished - started,
+                ),
+            ),
+            performance=AnalysisPerformance(
+                upload_seconds=0, validation_seconds=0,
+                kpi_seconds=kpi_finished - kpi_started,
+                insight_seconds=insight_finished - insight_started,
+                total_request_seconds=insight_finished - started,
+            ),
+        )
+        self.repository.save(record)
+        return record

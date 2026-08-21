@@ -12,6 +12,14 @@ from app.synthetic.config import AnomalyRule, AnomalyType, GenerationConfig
 from app.synthetic.csv_export import export_transactions_csv
 from app.synthetic.generator import generate_transactions
 
+TEST_DEV_KEY = "paylens-test-key-at-least-16-characters"
+
+
+def api_client(**app_options) -> TestClient:
+    client = TestClient(create_app(**app_options))
+    client.headers.update({"X-PayLens-Dev-Key": TEST_DEV_KEY})
+    return client
+
 
 @pytest.fixture(scope="module")
 def api_context(tmp_path_factory):
@@ -30,7 +38,7 @@ def api_context(tmp_path_factory):
         output,
     )
     repository = InMemoryAnalysisRepository()
-    client = TestClient(create_app(repository=repository))
+    client = api_client(repository=repository)
     response = client.post(
         "/analysis/upload",
         files={"file": ("canonical.csv", output.read_bytes(), "text/csv")},
@@ -40,9 +48,9 @@ def api_context(tmp_path_factory):
 
 
 def test_health_endpoint() -> None:
-    response = TestClient(create_app()).get("/health")
+    response = api_client().get("/health")
     assert response.status_code == 200
-    assert response.json() == {"status": "ok", "service": "paylens-api", "version": "0.3.0"}
+    assert response.json() == {"status": "ok", "service": "paylens-api", "version": "0.4.0"}
 
 
 def test_valid_upload_creates_retrievable_analysis(api_context) -> None:
@@ -57,7 +65,7 @@ def test_valid_upload_creates_retrievable_analysis(api_context) -> None:
 
 
 def test_non_csv_upload_is_rejected() -> None:
-    response = TestClient(create_app()).post(
+    response = api_client().post(
         "/analysis/upload", files={"file": ("payments.json", b"{}", "application/json")}
     )
     assert response.status_code == 415
@@ -65,7 +73,7 @@ def test_non_csv_upload_is_rejected() -> None:
 
 
 def test_invalid_csv_returns_structured_error() -> None:
-    response = TestClient(create_app()).post(
+    response = api_client().post(
         "/analysis/upload",
         files={"file": ("payments.csv", b"id,merchant_id\n1,m1\n", "text/csv")},
     )
@@ -76,7 +84,7 @@ def test_invalid_csv_returns_structured_error() -> None:
 
 
 def test_empty_file_is_rejected() -> None:
-    response = TestClient(create_app()).post(
+    response = api_client().post(
         "/analysis/upload", files={"file": ("payments.csv", b"", "text/csv")}
     )
     assert response.status_code == 400
@@ -84,7 +92,7 @@ def test_empty_file_is_rejected() -> None:
 
 
 def test_oversized_upload_is_rejected_without_analysis() -> None:
-    response = TestClient(create_app(max_upload_bytes=10)).post(
+    response = api_client(max_upload_bytes=10).post(
         "/analysis/upload",
         files={"file": ("payments.csv", b"a" * 11, "text/csv")},
     )
@@ -93,7 +101,7 @@ def test_oversized_upload_is_rejected_without_analysis() -> None:
 
 
 def test_analysis_not_found_is_structured() -> None:
-    response = TestClient(create_app()).get("/analysis/analysis_missing")
+    response = api_client().get("/analysis/analysis_missing")
     assert response.status_code == 404
     assert response.json()["error"]["code"] == "ANALYSIS_NOT_FOUND"
 
@@ -199,7 +207,6 @@ def test_api_values_match_stored_direct_engine_result(api_context) -> None:
 
 
 def test_missing_upload_field_uses_structured_validation_error() -> None:
-    response = TestClient(create_app()).post("/analysis/upload")
+    response = api_client().post("/analysis/upload")
     assert response.status_code == 422
     assert response.json()["error"]["code"] == "REQUEST_VALIDATION_ERROR"
-

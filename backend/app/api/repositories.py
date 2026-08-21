@@ -26,6 +26,9 @@ class AnalysisRecord(BaseModel):
     model_config = ConfigDict(extra="forbid", arbitrary_types_allowed=True)
 
     analysis_id: str
+    merchant_id: str
+    status: str = "COMPLETED"
+    source: str = "CSV"
     filename: str
     file_size: int
     created_at: datetime
@@ -45,6 +48,14 @@ class AnalysisRepository(ABC):
     def get(self, analysis_id: str) -> AnalysisRecord | None:
         """Retrieve an analysis by opaque identifier."""
 
+    def get_for_merchant(self, analysis_id: str, merchant_id: str) -> AnalysisRecord | None:
+        """Retrieve only when the authenticated merchant owns the analysis."""
+        record = self.get(analysis_id)
+        return record if record is not None and record.merchant_id == merchant_id else None
+
+    def ensure_merchant(self, merchant_id: str, name: str) -> None:
+        """Persist a merchant identity when supported by the repository."""
+
 
 class InMemoryAnalysisRepository(AnalysisRepository):
     """Thread-safe local prototype store; replaceable with PostgreSQL later."""
@@ -60,4 +71,3 @@ class InMemoryAnalysisRepository(AnalysisRepository):
     def get(self, analysis_id: str) -> AnalysisRecord | None:
         with self._lock:
             return self._records.get(analysis_id)
-

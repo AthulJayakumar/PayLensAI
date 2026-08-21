@@ -1,0 +1,41 @@
+[
+  {
+    "type": "FAILURE_SPIKE",
+    "probability": 0.14,
+    "provider": "STRIPE",
+    "start_at": "2026-06-16T00:00:00Z"
+  },
+  {
+    "type": "NETWORK_SPECIFIC_FAILURE",
+    "probability": 0.11,
+    "card_network": "MASTERCARD",
+    "issuer_country": "US",
+    "start_at": "2026-06-01T00:00:00Z"
+  },
+  {
+    "type": "COUNTRY_SPECIFIC_FAILURE",
+    "probability": 0.09,
+    "issuer_country": "DE",
+    "start_at": "2026-06-16T00:00:00Z"
+  },
+  {
+    "type": "HIGH_PROVIDER_FEES",
+    "multiplier": 1.8,
+    "provider": "PAYPAL"
+  },
+  {
+    "type": "REFUND_SPIKE",
+    "probability": 0.12,
+    "card_network": "VISA",
+    "issuer_country": "GB",
+    "start_at": "2026-06-01T00:00:00Z"
+  },
+  {
+    "type": "DISPUTE_SPIKE",
+    "probability": 0.045,
+    "provider": "ADYEN",
+    "issuer_country": "US",
+    "start_at": "2026-06-01T00:00:00Z"
+  }
+]
+

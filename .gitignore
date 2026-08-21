@@ -1,0 +1,17 @@
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.pytest-tmp*/
+.ruff_cache/
+.mypy_cache/
+.venv/
+venv/
+.test-deps/
+.npm-cache/
+.env
+*.log
+
+# Generated datasets can be recreated deterministically.
+synthetic-data/*.csv
+synthetic-data/*.analysis.json
+!synthetic-data/.gitkeep

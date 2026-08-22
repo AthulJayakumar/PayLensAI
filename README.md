@@ -100,6 +100,9 @@ docs/                     Sprint architecture and operational documentation
 
 ## Deferred scope
 
+AWS deployment access, bootstrap permissions, and the GitHub OIDC role design
+are documented in `docs/aws-deployment-access.md`.
+
 PayPal, Adyen, Bedrock/LLM explanations, Chrome extension, payment routing, and
 payment execution remain deferred. Actual pilot deployment and real Stripe
 test-mode verification are tracked as explicit Sprint 5 gates.

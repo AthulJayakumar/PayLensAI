@@ -1,0 +1,144 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "Identity",
+      "Effect": "Allow",
+      "Action": "sts:GetCallerIdentity",
+      "Resource": "*"
+    },
+    {
+      "Sid": "AssumeOnlyPayLensCdkBootstrapRoles",
+      "Effect": "Allow",
+      "Action": ["sts:AssumeRole", "sts:TagSession"],
+      "Resource": [
+        "arn:aws:iam::169133351222:role/cdk-hnb659fds-deploy-role-169133351222-eu-north-1",
+        "arn:aws:iam::169133351222:role/cdk-hnb659fds-file-publishing-role-169133351222-eu-north-1",
+        "arn:aws:iam::169133351222:role/cdk-hnb659fds-image-publishing-role-169133351222-eu-north-1",
+        "arn:aws:iam::169133351222:role/cdk-hnb659fds-lookup-role-169133351222-eu-north-1",
+        "arn:aws:iam::169133351222:role/cdk-hnb659fds-deploy-role-169133351222-us-east-1",
+        "arn:aws:iam::169133351222:role/cdk-hnb659fds-file-publishing-role-169133351222-us-east-1",
+        "arn:aws:iam::169133351222:role/cdk-hnb659fds-image-publishing-role-169133351222-us-east-1",
+        "arn:aws:iam::169133351222:role/cdk-hnb659fds-lookup-role-169133351222-us-east-1"
+      ]
+    },
+    {
+      "Sid": "ReadPayLensAndToolkitStacks",
+      "Effect": "Allow",
+      "Action": [
+        "cloudformation:DescribeStacks",
+        "cloudformation:DescribeStackEvents",
+        "cloudformation:DescribeStackResources",
+        "cloudformation:GetTemplate",
+        "cloudformation:GetTemplateSummary",
+        "cloudformation:ListStackResources"
+      ],
+      "Resource": [
+        "arn:aws:cloudformation:eu-north-1:169133351222:stack/PayLens-pilot*/*",
+        "arn:aws:cloudformation:eu-north-1:169133351222:stack/CDKToolkit/*",
+        "arn:aws:cloudformation:us-east-1:169133351222:stack/PayLens-pilot-Costs/*",
+        "arn:aws:cloudformation:us-east-1:169133351222:stack/CDKToolkit/*"
+      ]
+    },
+    {
+      "Sid": "ReadCdkBootstrapVersions",
+      "Effect": "Allow",
+      "Action": ["ssm:GetParameter", "ssm:GetParameters"],
+      "Resource": [
+        "arn:aws:ssm:eu-north-1:169133351222:parameter/cdk-bootstrap/hnb659fds/version",
+        "arn:aws:ssm:us-east-1:169133351222:parameter/cdk-bootstrap/hnb659fds/version"
+      ]
+    },
+    {
+      "Sid": "AuthenticateToEcr",
+      "Effect": "Allow",
+      "Action": "ecr:GetAuthorizationToken",
+      "Resource": "*"
+    },
+    {
+      "Sid": "PushImmutablePayLensImages",
+      "Effect": "Allow",
+      "Action": [
+        "ecr:BatchCheckLayerAvailability",
+        "ecr:CompleteLayerUpload",
+        "ecr:DescribeImages",
+        "ecr:DescribeRepositories",
+        "ecr:GetDownloadUrlForLayer",
+        "ecr:InitiateLayerUpload",
+        "ecr:ListImages",
+        "ecr:PutImage",
+        "ecr:UploadLayerPart"
+      ],
+      "Resource": [
+        "arn:aws:ecr:eu-north-1:169133351222:repository/paylens-pilot-backend",
+        "arn:aws:ecr:eu-north-1:169133351222:repository/paylens-pilot-frontend"
+      ]
+    },
+    {
+      "Sid": "RunMigrationAndStabilizeServices",
+      "Effect": "Allow",
+      "Action": [
+        "ecs:DescribeClusters",
+        "ecs:DescribeServices",
+        "ecs:DescribeTaskDefinition",
+        "ecs:DescribeTasks",
+        "ecs:ListTasks",
+        "ecs:RunTask",
+        "ecs:UpdateService"
+      ],
+      "Resource": "*",
+      "Condition": {
+        "StringEquals": {"aws:RequestedRegion": "eu-north-1"}
+      }
+    },
+    {
+      "Sid": "PassOnlyPayLensEcsRoles",
+      "Effect": "Allow",
+      "Action": "iam:PassRole",
+      "Resource": "arn:aws:iam::169133351222:role/PayLens-pilot-*",
+      "Condition": {
+        "StringEquals": {"iam:PassedToService": "ecs-tasks.amazonaws.com"}
+      }
+    },
+    {
+      "Sid": "ReadPilotOperationalState",
+      "Effect": "Allow",
+      "Action": [
+        "cloudwatch:DescribeAlarms",
+        "cloudwatch:GetDashboard",
+        "cloudwatch:GetMetricData",
+        "cloudwatch:GetMetricStatistics",
+        "cognito-idp:DescribeUserPool",
+        "cognito-idp:DescribeUserPoolClient",
+        "logs:DescribeLogGroups",
+        "logs:DescribeLogStreams",
+        "logs:FilterLogEvents",
+        "logs:GetLogEvents",
+        "rds:DescribeDBInstances",
+        "rds:DescribeDBSnapshots",
+        "s3:GetBucketEncryption",
+        "s3:GetBucketLocation",
+        "s3:GetBucketPolicyStatus",
+        "s3:GetBucketVersioning",
+        "s3:ListBucket",
+        "sqs:GetQueueAttributes",
+        "sqs:GetQueueUrl",
+        "sqs:ListDeadLetterSourceQueues"
+      ],
+      "Resource": "*",
+      "Condition": {
+        "StringEquals": {"aws:RequestedRegion": "eu-north-1"}
+      }
+    },
+    {
+      "Sid": "ReadPilotBudget",
+      "Effect": "Allow",
+      "Action": [
+        "budgets:DescribeBudget",
+        "budgets:DescribeNotificationsForBudget",
+        "budgets:DescribeSubscribersForNotification"
+      ],
+      "Resource": "*"
+    }
+  ]
+}

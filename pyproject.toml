@@ -4,18 +4,21 @@ build-backend = "hatchling.build"
 
 [project]
 name = "paylens-ai"
-version = "0.4.0"
+version = "0.5.0"
 description = "Merchant-connected payment-intelligence foundation for PayLens AI"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
+    "boto3>=1.40,<2",
     "fastapi>=0.116,<1",
+    "httpx>=0.28,<1",
     "alembic>=1.14,<2",
     "cryptography>=43,<47",
     "psycopg[binary]>=3.2,<4",
     "pydantic>=2.8,<3",
     "python-dotenv>=1.0,<2",
     "python-multipart>=0.0.20,<1",
+    "PyJWT[crypto]>=2.10,<3",
     "sqlalchemy>=2.0,<3",
     "stripe>=14,<16",
     "uvicorn[standard]>=0.35,<1",
@@ -23,7 +26,6 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = [
-    "httpx>=0.28,<1",
     "pytest>=8.2,<9",
 ]
 

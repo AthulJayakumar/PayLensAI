@@ -1,15 +1,17 @@
 from __future__ import annotations
 
 import os
+from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, Query, status
+from fastapi import APIRouter, Depends, Query, Request, status
 from fastapi.responses import RedirectResponse
 from pydantic import BaseModel, ConfigDict
 
-from app.api.auth import AuthenticatedMerchant
-from app.api.dependencies import get_current_merchant, get_provider_service
+from app.api.auth import AuthenticatedMerchant, MerchantRole
+from app.api.dependencies import get_current_merchant, get_provider_service, require_roles
 from app.api.errors import APIError
 from app.api.services.providers import ProviderService
+from app.providers.models import JobType
 
 
 router = APIRouter(prefix="/providers", tags=["providers"])
@@ -37,7 +39,7 @@ def provider_status(
 
 @router.post("/stripe/authorize")
 def authorize_stripe(
-    merchant: AuthenticatedMerchant = Depends(get_current_merchant),
+    merchant: AuthenticatedMerchant = Depends(require_roles(MerchantRole.OWNER, MerchantRole.ADMIN)),
     service: ProviderService = Depends(get_provider_service),
 ) -> dict:
     return {"authorization_url": service.authorization_url(merchant.merchant_id)}
@@ -56,10 +58,21 @@ def stripe_oauth_callback(
 
 @router.post("/stripe/sync", status_code=status.HTTP_202_ACCEPTED)
 def sync_stripe(
+    http_request: Request,
     request: SyncRequest | None = None,
-    merchant: AuthenticatedMerchant = Depends(get_current_merchant),
+    merchant: AuthenticatedMerchant = Depends(require_roles(MerchantRole.OWNER, MerchantRole.ADMIN, MerchantRole.ANALYST)),
     service: ProviderService = Depends(get_provider_service),
 ) -> dict:
+    jobs = getattr(http_request.app.state, "job_service", None)
+    if jobs is not None:
+        connection = service.status(merchant.merchant_id)
+        if connection is None:
+            raise APIError(status_code=409, code="STRIPE_NOT_CONNECTED", message="Connect Stripe before starting a sync.")
+        dedupe_suffix = request.resume_job_id if request and request.resume_job_id else datetime.now(timezone.utc).strftime("%Y%m%d%H")
+        job = jobs.enqueue(merchant_id=merchant.merchant_id, job_type=JobType.PROVIDER_SYNC,
+                           deduplication_key=f"provider-sync:{connection.id}:{dedupe_suffix}",
+                           payload={"resume_job_id": request.resume_job_id if request else None, "actor_id": merchant.actor_id})
+        return {"job": job.model_dump(mode="json")}
     job = service.sync(merchant, resume_job_id=request.resume_job_id if request else None)
     return {"sync_job": job.model_dump(mode="json")}
 
@@ -78,7 +91,7 @@ def get_sync_job(
 
 @router.post("/stripe/reconcile")
 def reconcile_stripe(
-    merchant: AuthenticatedMerchant = Depends(get_current_merchant),
+    merchant: AuthenticatedMerchant = Depends(require_roles(MerchantRole.OWNER, MerchantRole.ADMIN)),
     service: ProviderService = Depends(get_provider_service),
 ) -> dict:
     return {"reconciliation": service.reconcile(merchant.merchant_id).model_dump()}
@@ -86,7 +99,7 @@ def reconcile_stripe(
 
 @router.delete("/stripe", status_code=status.HTTP_204_NO_CONTENT)
 def disconnect_stripe(
-    merchant: AuthenticatedMerchant = Depends(get_current_merchant),
+    merchant: AuthenticatedMerchant = Depends(require_roles(MerchantRole.OWNER, MerchantRole.ADMIN)),
     service: ProviderService = Depends(get_provider_service),
 ) -> None:
-    service.disconnect(merchant.merchant_id)
+    service.disconnect(merchant.merchant_id, actor_id=merchant.actor_id)

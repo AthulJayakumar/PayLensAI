@@ -1,0 +1,9 @@
+.git
+.test-deps
+.pytest*
+frontend
+synthetic-data
+infrastructure/node_modules
+**/__pycache__
+**/*.pyc
+**/.env*

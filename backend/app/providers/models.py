@@ -14,6 +14,7 @@ class ConnectionStatus(StrEnum):
 
 
 class SyncStatus(StrEnum):
+    QUEUED = "QUEUED"
     PENDING = "PENDING"
     RUNNING = "RUNNING"
     COMPLETED = "COMPLETED"
@@ -99,3 +100,32 @@ class ReconciliationResult(BaseModel):
     updated: list[str] = Field(default_factory=list)
     duplicates: list[str] = Field(default_factory=list)
     repaired: int = 0
+
+
+class JobType(StrEnum):
+    PROVIDER_SYNC = "PROVIDER_SYNC"
+    ANALYSIS = "ANALYSIS"
+    WEBHOOK = "WEBHOOK"
+
+
+class JobStatus(StrEnum):
+    QUEUED = "QUEUED"
+    RUNNING = "RUNNING"
+    COMPLETED = "COMPLETED"
+    FAILED = "FAILED"
+
+
+class AsyncJob(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    id: str
+    merchant_id: str
+    type: JobType
+    status: JobStatus = JobStatus.QUEUED
+    deduplication_key: str
+    payload: dict = Field(default_factory=dict)
+    result: dict = Field(default_factory=dict)
+    error_code: str | None = None
+    attempts: int = Field(default=0, ge=0)
+    created_at: datetime
+    updated_at: datetime

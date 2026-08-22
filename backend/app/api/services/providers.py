@@ -21,6 +21,7 @@ from app.providers.models import (
 )
 from app.providers.security import CredentialVault, OAuthStateManager
 from app.providers.stripe.normalizer import StripeNormalizer
+from app.persistence.pilot_repository import AuditEvent
 
 
 def _id(prefix: str) -> str:
@@ -40,6 +41,7 @@ class ProviderService:
         redirect_uri: str,
         webhook_secret: str | None,
         normalizer: StripeNormalizer | None = None,
+        audit_store=None,
     ) -> None:
         self.connector = connector
         self.repository = repository
@@ -50,6 +52,12 @@ class ProviderService:
         self.redirect_uri = redirect_uri
         self.webhook_secret = webhook_secret
         self.normalizer = normalizer or StripeNormalizer()
+        self.audit_store = audit_store
+
+    def _audit(self, merchant_id: str, event_type: str, resource: str, *, actor_id: str | None = None, metadata: dict | None = None) -> None:
+        if self.audit_store is not None:
+            self.audit_store.record(AuditEvent(merchant_id=merchant_id, actor_id=actor_id, event_type=event_type,
+                                               resource=resource, safe_metadata=metadata or {}))
 
     def _configured_connector(self):
         if self.connector is None:
@@ -88,10 +96,21 @@ class ProviderService:
         )
         self.repository.save_connection(connection)
         self.credential_vault.save(connection.id, tokens.access_token, tokens.refresh_token)
+        self._audit(merchant_id, "STRIPE_CONNECTED", connection.id)
         return connection
 
-    def disconnect(self, merchant_id: str) -> None:
+    def disconnect(self, merchant_id: str, *, actor_id: str | None = None) -> bool:
+        connection = self.status(merchant_id)
+        revoked = False
+        if connection and connection.provider_account_id and self.connector is not None:
+            try:
+                revoked = self.connector.revoke(connection.provider_account_id)
+            except Exception:
+                revoked = False
         self.repository.delete_connection(merchant_id, "STRIPE")
+        self._audit(merchant_id, "STRIPE_DISCONNECTED", connection.id if connection else "stripe",
+                    actor_id=actor_id, metadata={"provider_revoked": revoked})
+        return revoked
 
     def _credentials(self, connection: ProviderConnection) -> ProviderCredentials:
         access_token, refresh_token = self.credential_vault.load(connection.id)
@@ -105,6 +124,7 @@ class ProviderService:
             })
             self.repository.save_connection(connection)
             self.credential_vault.save(connection.id, tokens.access_token, tokens.refresh_token)
+            self._audit(connection.merchant_id, "PROVIDER_CREDENTIAL_REFRESHED", connection.id)
             return ProviderCredentials(access_token=tokens.access_token, refresh_token=tokens.refresh_token, expires_at=tokens.expires_at)
         return ProviderCredentials(access_token=access_token, refresh_token=refresh_token, expires_at=connection.token_expires_at)
 
@@ -121,6 +141,7 @@ class ProviderService:
         else:
             job = SyncJob(id=_id("sync"), merchant_id=merchant.merchant_id, connection_id=connection.id, status=SyncStatus.RUNNING, started_at=datetime.now(timezone.utc))
         self.repository.save_sync_job(job)
+        self._audit(merchant.merchant_id, "SYNC_STARTED", job.id, actor_id=merchant.actor_id)
         credentials = self._credentials(connection)
         cursor = job.cursor
         try:
@@ -151,6 +172,8 @@ class ProviderService:
                 "updated_at": now, "last_sync_at": now,
                 "transactions_imported": len(transactions),
             }))
+            self._audit(merchant.merchant_id, "SYNC_COMPLETED", job.id, actor_id=merchant.actor_id,
+                        metadata={"records_normalised": job.records_normalised, "analysis_id": job.analysis_id})
             return job
         except APIError:
             raise
@@ -161,6 +184,8 @@ class ProviderService:
                 "cursor": cursor, "errors": [*job.errors, type(error).__name__],
             })
             self.repository.save_sync_job(job)
+            self._audit(merchant.merchant_id, "SYNC_FAILED", job.id, actor_id=merchant.actor_id,
+                        metadata={"error_type": type(error).__name__})
             return job
 
     def _raw(self, merchant_id: str, object_type: str, payload: dict, source: str) -> RawProviderObject:
@@ -180,6 +205,12 @@ class ProviderService:
             event = self._configured_connector().verify_webhook(payload, signature, self.webhook_secret)
         except Exception as error:
             raise APIError(status_code=400, code="INVALID_WEBHOOK_SIGNATURE", message="The Stripe webhook signature is invalid.") from error
+        accepted = self.accept_verified_webhook(event)
+        if accepted["status"] == "duplicate":
+            return {"status": "duplicate", "event_id": event["id"]}
+        return self.process_verified_webhook(event, already_recorded=True)
+
+    def accept_verified_webhook(self, event: dict) -> dict:
         connection = self.repository.find_connection_by_account("STRIPE", event.get("account", ""))
         if connection is None:
             raise APIError(status_code=404, code="STRIPE_CONNECTION_NOT_FOUND", message="No merchant connection matches this Stripe event.")
@@ -187,6 +218,16 @@ class ProviderService:
         raw_id = self.raw_store.put(raw)
         if not self.repository.record_webhook_event(event_id=event["id"], merchant_id=connection.merchant_id, event_type=event["type"], raw_object_id=raw_id):
             return {"status": "duplicate", "event_id": event["id"]}
+        return {"status": "accepted", "event_id": event["id"], "merchant_id": connection.merchant_id}
+
+    def process_verified_webhook(self, event: dict, *, already_recorded: bool = False) -> dict:
+        connection = self.repository.find_connection_by_account("STRIPE", event.get("account", ""))
+        if connection is None:
+            raise APIError(status_code=404, code="STRIPE_CONNECTION_NOT_FOUND", message="No merchant connection matches this Stripe event.")
+        if not already_recorded:
+            accepted = self.accept_verified_webhook(event)
+            if accepted["status"] == "duplicate":
+                return accepted
         object_payload = event.get("data", {}).get("object", {})
         supported = {"payment_intent.succeeded", "payment_intent.payment_failed", "payment_intent.canceled", "payment_intent.processing"}
         if event["type"] in supported:

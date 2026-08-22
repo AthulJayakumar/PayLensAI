@@ -1,11 +1,12 @@
 "use client";
 
 import { ChangeEvent, FormEvent, useRef, useState } from "react";
-import { AnalysisSummary, uploadAnalysis } from "../lib/api";
+import { AnalysisSummary, JobResponse, uploadAnalysis, waitForJob } from "../lib/api";
 
 type UploadPanelProps = {
   onComplete: (analysisId: string) => void;
-  uploader?: (file: File) => Promise<AnalysisSummary>;
+  uploader?: (file: File) => Promise<AnalysisSummary | JobResponse>;
+  jobWaiter?: typeof waitForJob;
 };
 
 function fileSize(bytes: number): string {
@@ -14,7 +15,7 @@ function fileSize(bytes: number): string {
     : `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-export function UploadPanel({ onComplete, uploader = uploadAnalysis }: UploadPanelProps) {
+export function UploadPanel({ onComplete, uploader = uploadAnalysis, jobWaiter = waitForJob }: UploadPanelProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [file, setFile] = useState<File | null>(null);
   const [status, setStatus] = useState<"idle" | "analysing" | "error">("idle");
@@ -37,7 +38,13 @@ export function UploadPanel({ onComplete, uploader = uploadAnalysis }: UploadPan
     setError("");
     try {
       const result = await uploader(file);
-      onComplete(result.analysis_id);
+      if ("job" in result) {
+        const completed = await jobWaiter(result.job.id);
+        if (!completed.result.analysis_id) throw new Error("The completed analysis job returned no analysis identifier.");
+        onComplete(completed.result.analysis_id);
+      } else {
+        onComplete(result.analysis_id);
+      }
     } catch (uploadError) {
       setStatus("error");
       setError(uploadError instanceof Error ? uploadError.message : "Analysis could not be completed.");
@@ -85,4 +92,3 @@ export function UploadPanel({ onComplete, uploader = uploadAnalysis }: UploadPan
     </form>
   );
 }
-

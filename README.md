@@ -5,7 +5,7 @@ authorised Stripe data into one canonical model, calculates deterministic
 currency-safe metrics, and surfaces structured findings. It does not process or
 route payments.
 
-The verified Sprints 1–4 include:
+The verified Sprints 1–5 include:
 
 - canonical Pydantic transactions and deterministic 100,000-row synthetic data;
 - exact KPIs, segmentation, baselines, seven detectors, and deterministic severity;
@@ -15,11 +15,14 @@ The verified Sprints 1–4 include:
 - Stripe Apps OAuth 2.0, paginated/resumable sync, signed webhooks, and reconciliation;
 - encrypted provider credentials and S3-replaceable JSONB raw-object storage;
 - both CSV and Stripe feeding the same analytics and insight engine.
+- reproducible low-cost AWS pilot infrastructure with ECS, RDS, S3, SQS,
+  Cognito, CloudFront, audit events, monitoring, budgets, and reviewed CI/CD.
 
 Architecture documentation: [Sprint 1](docs/sprint-1-architecture.md),
 [Sprint 2](docs/sprint-2-intelligence-engine.md),
 [Sprint 3](docs/sprint-3-product-prototype.md), and
-[Sprint 4](docs/sprint-4-stripe-persistence.md).
+[Sprint 4](docs/sprint-4-stripe-persistence.md), and
+[Sprint 5](docs/sprint-5-aws-pilot.md).
 
 ## Local setup
 
@@ -97,5 +100,6 @@ docs/                     Sprint architecture and operational documentation
 
 ## Deferred scope
 
-AWS/Cognito/S3 deployment, PayPal, Adyen, Bedrock/LLM explanations, production
-workers, Chrome extension, payment routing, and payment execution remain deferred.
+PayPal, Adyen, Bedrock/LLM explanations, Chrome extension, payment routing, and
+payment execution remain deferred. Actual pilot deployment and real Stripe
+test-mode verification are tracked as explicit Sprint 5 gates.

@@ -22,6 +22,7 @@ from app.api.repositories import (
     AnalysisRepository,
 )
 from app.insights.engine import InsightEngine
+from app.persistence.pilot_repository import AuditEvent
 
 
 DEFAULT_MAX_UPLOAD_BYTES = 64 * 1024 * 1024
@@ -47,10 +48,18 @@ class AnalysisService:
         *,
         max_upload_bytes: int = DEFAULT_MAX_UPLOAD_BYTES,
         insight_engine: InsightEngine | None = None,
+        audit_store=None,
     ) -> None:
         self.repository = repository
         self.max_upload_bytes = max_upload_bytes
         self.insight_engine = insight_engine or InsightEngine()
+        self.audit_store = audit_store
+
+    def _audit_created(self, record: AnalysisRecord, merchant: AuthenticatedMerchant) -> None:
+        if self.audit_store is not None:
+            self.audit_store.record(AuditEvent(merchant_id=merchant.merchant_id, actor_id=merchant.actor_id,
+                event_type="ANALYSIS_CREATED", resource=record.analysis_id,
+                safe_metadata={"source": record.source, "transaction_count": record.result.transaction_count}))
 
     async def create_analysis(
         self, upload: UploadFile, merchant: AuthenticatedMerchant
@@ -165,6 +174,7 @@ class AnalysisService:
                 ),
             )
             self.repository.save(record)
+            self._audit_created(record, merchant)
             return record
         finally:
             await upload.close()
@@ -212,4 +222,5 @@ class AnalysisService:
             ),
         )
         self.repository.save(record)
+        self._audit_created(record, merchant)
         return record

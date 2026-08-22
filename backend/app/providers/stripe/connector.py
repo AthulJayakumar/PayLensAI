@@ -34,6 +34,9 @@ class StripeTransport(ABC):
     def retrieve_charge(self, access_token: str, charge_id: str) -> dict:
         raise NotImplementedError
 
+    def deauthorize(self, developer_api_key: str, client_id: str, stripe_user_id: str) -> dict:
+        raise NotImplementedError
+
 
 class OfficialStripeTransport(StripeTransport):
     def exchange_token(self, developer_api_key: str, form: dict[str, str]) -> dict:
@@ -65,6 +68,16 @@ class OfficialStripeTransport(StripeTransport):
             expand=["balance_transaction", "payment_method_details"],
         )
         return _stripe_dict(item)
+
+    def deauthorize(self, developer_api_key: str, client_id: str, stripe_user_id: str) -> dict:
+        response = httpx.post(
+            "https://api.stripe.com/v1/oauth/deauthorize",
+            auth=(developer_api_key, ""),
+            data={"client_id": client_id, "stripe_user_id": stripe_user_id},
+            timeout=30,
+        )
+        response.raise_for_status()
+        return response.json()
 
 
 class StripeConnector(PaymentProviderConnector):
@@ -136,6 +149,10 @@ class StripeConnector(PaymentProviderConnector):
 
     def fetch_charge(self, *, access_token: str, charge_id: str) -> dict:
         return self.transport.retrieve_charge(access_token, charge_id)
+
+    def revoke(self, stripe_user_id: str) -> bool:
+        result = self.transport.deauthorize(self.developer_api_key, self.client_id, stripe_user_id)
+        return result.get("stripe_user_id") == stripe_user_id
 
     @staticmethod
     def verify_webhook(payload: bytes, signature: str, endpoint_secret: str) -> dict:

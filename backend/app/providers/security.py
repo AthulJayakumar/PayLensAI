@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import base64
 import hashlib
+import hashlib
 import hmac
 import json
 import secrets
@@ -14,7 +15,11 @@ from cryptography.fernet import Fernet, InvalidToken
 
 class CredentialCipher:
     def __init__(self, key: str) -> None:
-        self._fernet = Fernet(key.encode())
+        try:
+            self._fernet = Fernet(key.encode())
+        except ValueError:
+            derived = base64.urlsafe_b64encode(hashlib.sha256(key.encode()).digest())
+            self._fernet = Fernet(derived)
 
     def encrypt(self, plaintext: str | None) -> str | None:
         return None if plaintext is None else self._fernet.encrypt(plaintext.encode()).decode()

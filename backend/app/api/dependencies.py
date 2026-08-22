@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from fastapi import Depends, Request
 
-from app.api.auth import AuthenticatedMerchant
+from app.api.auth import AuthenticatedMerchant, MerchantRole
 from app.api.errors import APIError
 from app.api.explanations import ExplanationProvider
 from app.api.repositories import AnalysisRecord, AnalysisRepository
@@ -32,6 +32,14 @@ def get_current_merchant(request: Request) -> AuthenticatedMerchant:
     merchant = request.app.state.authenticator.authenticate(request)
     get_repository(request).ensure_merchant(merchant.merchant_id, merchant.name)
     return merchant
+
+
+def require_roles(*allowed: MerchantRole):
+    def dependency(merchant: AuthenticatedMerchant = Depends(get_current_merchant)) -> AuthenticatedMerchant:
+        if merchant.role not in allowed:
+            raise APIError(status_code=403, code="ROLE_FORBIDDEN", message="Your merchant role cannot perform this action.")
+        return merchant
+    return dependency
 
 
 def require_analysis(

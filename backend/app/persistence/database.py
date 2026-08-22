@@ -148,7 +148,8 @@ class WebhookEventRow(Base):
     event_type: Mapped[str] = mapped_column(String(100), nullable=False)
     received_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     processed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
-    raw_object_id: Mapped[str] = mapped_column(ForeignKey("raw_provider_objects.id", ondelete="RESTRICT"))
+    # May be a PostgreSQL raw ID locally or an encrypted S3 URI in AWS.
+    raw_object_id: Mapped[str] = mapped_column(String(1024), nullable=False)
 
 
 class OAuthStateRow(Base):
@@ -159,6 +160,52 @@ class OAuthStateRow(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     consumed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class UserRow(Base):
+    __tablename__ = "users"
+
+    subject: Mapped[str] = mapped_column(String(128), primary_key=True)
+    email: Mapped[str | None] = mapped_column(String(320), unique=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
+
+
+class MerchantMembershipRow(Base):
+    __tablename__ = "merchant_memberships"
+
+    merchant_id: Mapped[str] = mapped_column(ForeignKey("merchants.id", ondelete="CASCADE"), primary_key=True)
+    user_subject: Mapped[str] = mapped_column(ForeignKey("users.subject", ondelete="CASCADE"), primary_key=True)
+    role: Mapped[str] = mapped_column(String(24), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
+
+
+class AsyncJobRow(Base):
+    __tablename__ = "async_jobs"
+    __table_args__ = (UniqueConstraint("merchant_id", "deduplication_key", name="uq_async_job_deduplication"),)
+
+    id: Mapped[str] = mapped_column(String(100), primary_key=True)
+    merchant_id: Mapped[str] = mapped_column(ForeignKey("merchants.id", ondelete="CASCADE"), index=True)
+    type: Mapped[str] = mapped_column(String(32), nullable=False)
+    status: Mapped[str] = mapped_column(String(24), nullable=False)
+    deduplication_key: Mapped[str] = mapped_column(String(255), nullable=False)
+    payload: Mapped[dict] = mapped_column(JSON_DOCUMENT, default=dict, nullable=False)
+    result: Mapped[dict] = mapped_column(JSON_DOCUMENT, default=dict, nullable=False)
+    error_code: Mapped[str | None] = mapped_column(String(100))
+    attempts: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class AuditEventRow(Base):
+    __tablename__ = "audit_events"
+
+    id: Mapped[str] = mapped_column(String(100), primary_key=True)
+    merchant_id: Mapped[str] = mapped_column(ForeignKey("merchants.id", ondelete="CASCADE"), index=True)
+    actor_id: Mapped[str | None] = mapped_column(String(128))
+    event_type: Mapped[str] = mapped_column(String(64), nullable=False)
+    resource: Mapped[str] = mapped_column(String(255), nullable=False)
+    safe_metadata: Mapped[dict] = mapped_column(JSON_DOCUMENT, default=dict, nullable=False)
+    occurred_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
 
 def create_engine_from_url(database_url: str):

@@ -2,8 +2,12 @@ export const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000
 const DEV_API_KEY = process.env.NEXT_PUBLIC_PAYLENS_DEV_API_KEY ?? "";
 
 function authHeaders(): HeadersInit {
+  const token = typeof window !== "undefined" ? window.sessionStorage.getItem("paylens_access_token") : null;
+  if (token) return { Authorization: `Bearer ${token}` };
   return DEV_API_KEY ? { "X-PayLens-Dev-Key": DEV_API_KEY } : {};
 }
+
+const requestOptions = (headers: HeadersInit = {}): RequestInit => ({ headers, credentials: "include" });
 
 export type AnalysisSummary = {
   analysis_id: string;
@@ -91,6 +95,14 @@ export type SyncJob = {
   analysis_id: string | null;
   errors: string[];
 };
+export type AsyncJob = {
+  id: string;
+  type: "PROVIDER_SYNC" | "ANALYSIS" | "WEBHOOK";
+  status: "QUEUED" | "RUNNING" | "COMPLETED" | "FAILED";
+  result: { analysis_id?: string; sync_job_id?: string; transaction_count?: number; status?: string };
+  error_code: string | null;
+};
+export type JobResponse = { job: AsyncJob };
 
 export class PayLensApiError extends Error {
   constructor(public code: string, message: string) {
@@ -106,42 +118,55 @@ async function parseResponse<T>(response: Response): Promise<T> {
   return body as T;
 }
 
-export async function uploadAnalysis(file: File): Promise<AnalysisSummary> {
+export async function uploadAnalysis(file: File): Promise<AnalysisSummary | JobResponse> {
   const form = new FormData();
   form.append("file", file);
   return parseResponse<AnalysisSummary>(await fetch(`${API_URL}/analysis/upload`, { method: "POST", headers: authHeaders(), body: form }));
 }
 
+export async function fetchJob(jobId: string): Promise<JobResponse> {
+  return parseResponse(await fetch(`${API_URL}/jobs/${jobId}`, requestOptions(authHeaders())));
+}
+
+export async function waitForJob(jobId: string, intervalMs = 1000): Promise<AsyncJob> {
+  for (;;) {
+    const { job } = await fetchJob(jobId);
+    if (job.status === "COMPLETED") return job;
+    if (job.status === "FAILED") throw new PayLensApiError(job.error_code ?? "JOB_FAILED", "PayLens could not complete the queued job.");
+    await new Promise((resolve) => window.setTimeout(resolve, intervalMs));
+  }
+}
+
 export async function fetchAnalysis(analysisId: string): Promise<AnalysisSummary> {
-  return parseResponse(await fetch(`${API_URL}/analysis/${analysisId}`, { headers: authHeaders() }));
+  return parseResponse(await fetch(`${API_URL}/analysis/${analysisId}`, requestOptions(authHeaders())));
 }
 
 export async function fetchKpis(analysisId: string): Promise<KpiResponse> {
-  return parseResponse(await fetch(`${API_URL}/analysis/${analysisId}/kpis`, { headers: authHeaders() }));
+  return parseResponse(await fetch(`${API_URL}/analysis/${analysisId}/kpis`, requestOptions(authHeaders())));
 }
 
 export async function fetchSegments(analysisId: string, dimensions: string): Promise<SegmentsResponse> {
   const query = new URLSearchParams({ dimensions });
-  return parseResponse(await fetch(`${API_URL}/analysis/${analysisId}/segments?${query}`, { headers: authHeaders() }));
+  return parseResponse(await fetch(`${API_URL}/analysis/${analysisId}/segments?${query}`, requestOptions(authHeaders())));
 }
 
 export async function fetchInsights(analysisId: string): Promise<InsightsResponse> {
-  return parseResponse(await fetch(`${API_URL}/analysis/${analysisId}/insights`, { headers: authHeaders() }));
+  return parseResponse(await fetch(`${API_URL}/analysis/${analysisId}/insights`, requestOptions(authHeaders())));
 }
 
 export async function fetchInsightDetail(analysisId: string, insightId: string): Promise<InsightDetailResponse> {
-  return parseResponse(await fetch(`${API_URL}/analysis/${analysisId}/insights/${insightId}`, { headers: authHeaders() }));
+  return parseResponse(await fetch(`${API_URL}/analysis/${analysisId}/insights/${insightId}`, requestOptions(authHeaders())));
 }
 
 export async function fetchProviders(): Promise<ProviderStatusResponse> {
-  return parseResponse(await fetch(`${API_URL}/providers`, { headers: authHeaders() }));
+  return parseResponse(await fetch(`${API_URL}/providers`, requestOptions(authHeaders())));
 }
 
 export async function beginStripeConnection(): Promise<{ authorization_url: string }> {
   return parseResponse(await fetch(`${API_URL}/providers/stripe/authorize`, { method: "POST", headers: authHeaders() }));
 }
 
-export async function syncStripe(): Promise<{ sync_job: SyncJob }> {
+export async function syncStripe(): Promise<{ sync_job: SyncJob } | JobResponse> {
   return parseResponse(await fetch(`${API_URL}/providers/stripe/sync`, {
     method: "POST",
     headers: { ...authHeaders(), "Content-Type": "application/json" },

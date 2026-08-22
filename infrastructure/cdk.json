@@ -1,0 +1,8 @@
+{
+  "app": "npx tsx bin/paylens.ts",
+  "context": {
+    "environment": "dev",
+    "budgetLimitUsd": 150,
+    "backupRetentionDays": 1
+  }
+}

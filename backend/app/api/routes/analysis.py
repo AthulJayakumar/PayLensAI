@@ -1,9 +1,11 @@
-from fastapi import APIRouter, Depends, File, UploadFile, status
+import secrets
+from fastapi import APIRouter, Depends, File, Request, Response, UploadFile, status
 
-from app.api.auth import AuthenticatedMerchant
-from app.api.dependencies import get_analysis_service, get_current_merchant, require_analysis
+from app.api.auth import AuthenticatedMerchant, MerchantRole
+from app.api.dependencies import get_analysis_service, require_analysis, require_roles
 from app.api.repositories import AnalysisRecord
 from app.api.services.analysis import AnalysisService
+from app.providers.models import JobType
 
 
 router = APIRouter(prefix="/analysis", tags=["analysis"])
@@ -30,10 +32,26 @@ def analysis_summary(record: AnalysisRecord) -> dict:
 
 @router.post("/upload", status_code=status.HTTP_201_CREATED)
 async def upload_analysis(
+    request: Request,
+    response: Response,
     file: UploadFile = File(...),
     service: AnalysisService = Depends(get_analysis_service),
-    merchant: AuthenticatedMerchant = Depends(get_current_merchant),
+    merchant: AuthenticatedMerchant = Depends(require_roles(MerchantRole.OWNER, MerchantRole.ADMIN, MerchantRole.ANALYST)),
 ) -> dict:
+    jobs = getattr(request.app.state, "job_service", None)
+    upload_store = getattr(request.app.state, "analysis_upload_store", None)
+    if jobs is not None and upload_store is not None:
+        upload_id = f"upload_{secrets.token_hex(12)}"
+        try:
+            s3_key, size, filename = await upload_store.put(file, merchant.merchant_id, upload_id, service.max_upload_bytes)
+        except ValueError as error:
+            from app.api.errors import APIError
+            raise APIError(status_code=413 if "limit" in str(error) else 415, code="INVALID_UPLOAD", message=str(error)) from error
+        job = jobs.enqueue(merchant_id=merchant.merchant_id, job_type=JobType.ANALYSIS,
+                           deduplication_key=f"analysis:{upload_id}",
+                           payload={"s3_key": s3_key, "filename": filename, "file_size": size, "actor_id": merchant.actor_id})
+        response.status_code = status.HTTP_202_ACCEPTED
+        return {"job": job.model_dump(mode="json")}
     record = await service.create_analysis(file, merchant)
     return analysis_summary(record)
 

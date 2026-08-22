@@ -1,6 +1,6 @@
 {
   "name": "paylens-frontend",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "private": true,
   "engines": {
     "node": ">=22.13.0"
@@ -13,15 +13,20 @@
     "lint": "eslint . --ignore-pattern dist --ignore-pattern .next"
   },
   "dependencies": {
-    "react": "19.2.6",
-    "react-dom": "19.2.6"
+    "@vitejs/plugin-react": "6.1.0",
+    "@vitejs/plugin-rsc": "0.5.34",
+    "react": "19.2.8",
+    "react-dom": "19.2.8",
+    "react-server-dom-webpack": "19.2.8",
+    "vinext": "1.0.0-beta.8",
+    "vite": "8.2.2"
   },
   "devDependencies": {
-    "@cloudflare/vite-plugin": "1.37.1",
+    "@cloudflare/vite-plugin": "1.53.1",
     "@eslint/js": "9.39.4",
     "@next/eslint-plugin-next": "16.2.6",
     "@openai/sites-vite-plugin": "0.1.0",
-    "@rolldown/binding-win32-x64-msvc": "1.0.1",
+    "@rolldown/binding-win32-x64-msvc": "1.2.5",
     "@testing-library/jest-dom": "6.9.1",
     "@testing-library/react": "16.3.0",
     "@testing-library/user-event": "14.6.1",
@@ -29,22 +34,23 @@
     "@types/node": "22.19.19",
     "@types/react": "19.2.14",
     "@types/react-dom": "19.2.3",
-    "@vitejs/plugin-react": "6.0.2",
-    "@vitejs/plugin-rsc": "0.5.26",
     "eslint": "9.39.4",
     "eslint-plugin-jsx-a11y": "6.10.2",
     "eslint-plugin-react": "7.37.5",
     "eslint-plugin-react-hooks": "7.1.1",
     "globals": "16.4.0",
     "jsdom": "26.1.0",
-    "react-server-dom-webpack": "19.2.6",
     "tailwindcss": "4.2.1",
     "typescript": "5.9.3",
     "typescript-eslint": "8.59.3",
-    "vitest": "3.2.4",
-    "vinext": "1.0.0-beta.2",
-    "vite": "8.0.13",
-    "wrangler": "4.92.0"
+    "vitest": "3.2.7",
+    "wrangler": "4.125.0"
+  },
+  "optionalDependencies": {
+    "@rolldown/binding-linux-x64-gnu": "1.2.5"
+  },
+  "overrides": {
+    "esbuild": "0.28.2"
   },
   "type": "module"
 }

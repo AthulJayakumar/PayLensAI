@@ -9,12 +9,14 @@ import {
   ProviderStatusResponse,
   syncStripe,
   SyncJob,
+  JobResponse,
+  waitForJob,
 } from "../lib/api";
 
 type Props = {
   loader?: () => Promise<ProviderStatusResponse>;
   connector?: () => Promise<{ authorization_url: string }>;
-  synchronizer?: () => Promise<{ sync_job: SyncJob }>;
+  synchronizer?: () => Promise<{ sync_job: SyncJob } | JobResponse>;
   disconnector?: () => Promise<void>;
 };
 
@@ -65,7 +67,12 @@ export function ProviderConnections({
     setBusy(true); setError("");
     try {
       const result = await synchronizer();
-      setSyncJob(result.sync_job);
+      if ("job" in result) {
+        setSyncJob({ id: result.job.id, status: "PENDING", records_received: 0, records_normalised: 0, analysis_id: null, errors: [] });
+        const completed = await waitForJob(result.job.id);
+        setSyncJob({ id: completed.result.sync_job_id ?? result.job.id, status: completed.result.status === "COMPLETED" ? "COMPLETED" : "FAILED",
+          records_received: 0, records_normalised: 0, analysis_id: completed.result.analysis_id ?? null, errors: [] });
+      } else setSyncJob(result.sync_job);
       await refresh();
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Stripe synchronization failed.");

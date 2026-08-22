@@ -1,0 +1,45 @@
+name: Deploy pilot
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: Type DEPLOY-PILOT after review
+        required: true
+jobs:
+  deploy:
+    if: inputs.confirm == 'DEPLOY-PILOT'
+    environment: pilot
+    permissions: { id-token: write, contents: read }
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: "24", cache: npm, cache-dependency-path: infrastructure/package-lock.json }
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: eu-north-1
+      - working-directory: infrastructure
+        run: npm ci
+      - working-directory: infrastructure
+        run: npx cdk deploy PayLens-pilot-Images --require-approval never -c environment=pilot
+      - id: ecr
+        run: |
+          ACCOUNT=$(aws sts get-caller-identity --query Account --output text)
+          aws ecr get-login-password | docker login --username AWS --password-stdin "$ACCOUNT.dkr.ecr.eu-north-1.amazonaws.com"
+          echo "registry=$ACCOUNT.dkr.ecr.eu-north-1.amazonaws.com" >> "$GITHUB_OUTPUT"
+      - run: |
+          docker build -t "${{ steps.ecr.outputs.registry }}/paylens-pilot-backend:${GITHUB_SHA}" .
+          docker push "${{ steps.ecr.outputs.registry }}/paylens-pilot-backend:${GITHUB_SHA}"
+          docker build -t "${{ steps.ecr.outputs.registry }}/paylens-pilot-frontend:${GITHUB_SHA}" frontend
+          docker push "${{ steps.ecr.outputs.registry }}/paylens-pilot-frontend:${GITHUB_SHA}"
+      - working-directory: infrastructure
+        run: npx cdk deploy PayLens-pilot PayLens-pilot-Costs --require-approval never -c environment=pilot -c imageTag=${GITHUB_SHA} --parameters PayLens-pilot:BudgetAlertEmail=${{ secrets.BUDGET_ALERT_EMAIL }} --parameters PayLens-pilot:OriginVerifyHeader=${{ secrets.ORIGIN_VERIFY_HEADER }} --parameters PayLens-pilot-Costs:BudgetAlertEmail=${{ secrets.BUDGET_ALERT_EMAIL }}
+      - name: Explicit migration task
+        shell: bash
+        run: bash scripts/run-migrations.sh pilot
+      - name: Force services and smoke test
+        shell: bash
+        run: bash scripts/smoke-aws.sh pilot

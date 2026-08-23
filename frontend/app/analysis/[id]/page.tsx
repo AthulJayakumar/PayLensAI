@@ -1,5 +1,7 @@
 "use client";
 
+/** Analysis dashboard route that assembles summary, KPI, insight, and segment resources. */
+
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { useEffect, useState } from "react";
@@ -16,6 +18,7 @@ export default function AnalysisPage() {
   const [error, setError] = useState("");
 
   useEffect(() => {
+    // Independent read endpoints are loaded together to minimize dashboard wait time.
     const started = performance.now();
     Promise.all([
       fetchAnalysis(analysisId), fetchKpis(analysisId), fetchInsights(analysisId),

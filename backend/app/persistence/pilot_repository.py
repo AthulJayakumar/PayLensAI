@@ -17,6 +17,7 @@ from app.providers.models import AsyncJob, JobStatus, JobType
 
 
 class AuditEvent(BaseModel):
+    """Safe audit contract that deliberately excludes tokens/payment payloads."""
     model_config = ConfigDict(extra="forbid")
     id: str = Field(default_factory=lambda: f"audit_{secrets.token_hex(12)}")
     merchant_id: str
@@ -28,6 +29,7 @@ class AuditEvent(BaseModel):
 
 
 class InMemoryPilotRepository:
+    """Thread-safe identity/job/audit adapter for deterministic tests."""
     def __init__(self) -> None:
         self.memberships: dict[str, tuple[str, str, MerchantRole]] = {}
         self.jobs: dict[str, AsyncJob] = {}
@@ -63,6 +65,7 @@ class InMemoryPilotRepository:
 
 
 class SQLPilotRepository:
+    """Persistent memberships, jobs, deduplication, and audit events."""
     def __init__(self, engine) -> None:
         self.engine = engine
 
@@ -90,6 +93,7 @@ class SQLPilotRepository:
                         error_code=row.error_code, attempts=row.attempts, created_at=row.created_at, updated_at=row.updated_at)
 
     def create_job(self, job: AsyncJob) -> tuple[AsyncJob, bool]:
+        """Let PostgreSQL's unique key arbitrate concurrent duplicate requests."""
         try:
             with Session(self.engine) as session, session.begin():
                 session.add(AsyncJobRow(**job.model_dump(mode="python", exclude={"type", "status"}), type=job.type.value, status=job.status.value))

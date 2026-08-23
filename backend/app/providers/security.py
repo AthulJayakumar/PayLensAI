@@ -14,6 +14,7 @@ from cryptography.fernet import Fernet, InvalidToken
 
 
 class CredentialCipher:
+    """Authenticated encryption wrapper accepting Fernet or high-entropy master keys."""
     def __init__(self, key: str) -> None:
         try:
             self._fernet = Fernet(key.encode())
@@ -55,6 +56,7 @@ class CredentialVault:
 
 
 class OAuthStateManager:
+    """Issue signed, expiring, single-use OAuth state bound to a merchant."""
     def __init__(self, secret: str, state_repository, *, ttl: timedelta = timedelta(minutes=10)) -> None:
         if len(secret) < 32:
             raise ValueError("OAuth state secret must contain at least 32 characters.")
@@ -63,6 +65,7 @@ class OAuthStateManager:
         self._ttl = ttl
 
     def issue(self, merchant_id: str) -> str:
+        """Persist a nonce hash and return a signed state safe for browser round-trip."""
         now = datetime.now(timezone.utc)
         nonce = secrets.token_urlsafe(24)
         payload = {"merchant_id": merchant_id, "nonce": nonce, "exp": int((now + self._ttl).timestamp())}
@@ -72,6 +75,7 @@ class OAuthStateManager:
         return f"{encoded}.{signature}"
 
     def consume(self, state: str) -> str:
+        """Verify signature/expiry and atomically consume the nonce exactly once."""
         try:
             encoded, supplied_signature = state.split(".", 1)
             expected = hmac.new(self._secret, encoded.encode(), hashlib.sha256).hexdigest()

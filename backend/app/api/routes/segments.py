@@ -1,3 +1,5 @@
+"""Endpoints for slicing normalized transactions by up to three dimensions."""
+
 from fastapi import APIRouter, Depends, Query
 
 from app.analytics.models import SegmentDimension
@@ -16,6 +18,8 @@ def get_segments(
     dimensions: str = Query(..., min_length=1),
     record: AnalysisRecord = Depends(require_analysis),
 ) -> dict:
+    """Validate requested dimensions, calculate groups, and serialize each KPI set."""
+    # Limiting combinations keeps response sizes predictable for this pilot API.
     requested = [item.strip() for item in dimensions.split(",") if item.strip()]
     if not requested or len(requested) > 3 or len(set(requested)) != len(requested):
         raise APIError(
@@ -33,6 +37,7 @@ def get_segments(
             details=[{"supported": [item.value for item in SegmentDimension]}],
         ) from error
 
+    # Segments are calculated from canonical transactions, never provider-specific payloads.
     groups = segment_metrics(record.transactions, parsed)
     return {
         "analysis_id": record.analysis_id,
@@ -41,4 +46,3 @@ def get_segments(
             {"segment": group.segment, **metrics_payload(group.metrics)} for group in groups
         ],
     }
-

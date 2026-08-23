@@ -1,5 +1,6 @@
 @import "tailwindcss";
 
+/* Design tokens shared by landing, dashboard, insight, and provider screens. */
 :root {
   --ink: #0b1739;
   --ink-soft: #52617c;
@@ -30,6 +31,7 @@ button, input { font: inherit; }
 button, a { -webkit-tap-highlight-color: transparent; }
 a { color: inherit; text-decoration: none; }
 .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
+/* Landing page and upload workflow. */
 .landing-shell { max-width: 1240px; margin: 0 auto; padding: 0 36px 52px; }
 .site-header { height: 88px; display: flex; align-items: center; justify-content: space-between; }
 .landing-nav { display: flex; align-items: center; gap: 10px; }
@@ -79,6 +81,7 @@ a { color: inherit; text-decoration: none; }
   .process-strip div { border-right: 0; border-bottom: 1px solid var(--line); }
 }
 
+/* Analysis dashboard shell, metric cards, insight feed, and segment tables. */
 .app-shell { max-width: 1440px; margin: 0 auto; padding: 0 34px 72px; }
 .app-header { height: 78px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--line); }
 .app-header nav { display: flex; align-items: center; gap: 14px; }
@@ -142,6 +145,7 @@ tbody tr:last-child td { border: 0; }
 .page-state.error-banner { margin-top: 50px; }
 .loading-ring { width: 34px; height: 34px; border: 3px solid #dce3f5; border-top-color: var(--blue); border-radius: 50%; animation: spin .8s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
+/* Individual insight evidence and explanation layout. */
 .detail-shell { padding-bottom: 90px; }
 .breadcrumb { padding: 28px 0 10px; color: var(--blue); font-size: 12px; font-weight: 700; }
 .detail-hero { max-width: 850px; padding: 38px 0 34px; }
@@ -182,6 +186,7 @@ tbody tr:last-child td { border: 0; }
   *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; }
 }
 
+/* Stripe provider connection and synchronization state. */
 .provider-page { max-width: 1120px; }
 .provider-hero { max-width: 760px; padding: 62px 0 35px; }
 .provider-hero h1 { margin: 0; font-size: clamp(40px, 6vw, 64px); line-height: 1.03; letter-spacing: -.05em; }

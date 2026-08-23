@@ -1,3 +1,5 @@
+"""Create and retrieve merchant-owned CSV analyses."""
+
 import secrets
 from fastapi import APIRouter, Depends, File, Request, Response, UploadFile, status
 
@@ -12,6 +14,7 @@ router = APIRouter(prefix="/analysis", tags=["analysis"])
 
 
 def analysis_summary(record: AnalysisRecord) -> dict:
+    """Serialize the stable summary shared by upload and retrieval responses."""
     return {
         "analysis_id": record.analysis_id,
         "status": "COMPLETED",
@@ -38,8 +41,10 @@ async def upload_analysis(
     service: AnalysisService = Depends(get_analysis_service),
     merchant: AuthenticatedMerchant = Depends(require_roles(MerchantRole.OWNER, MerchantRole.ADMIN, MerchantRole.ANALYST)),
 ) -> dict:
+    """Analyse immediately locally or enqueue an S3-backed AWS job."""
     jobs = getattr(request.app.state, "job_service", None)
     upload_store = getattr(request.app.state, "analysis_upload_store", None)
+    # AWS stores the large body in S3 and sends only a durable reference to SQS.
     if jobs is not None and upload_store is not None:
         upload_id = f"upload_{secrets.token_hex(12)}"
         try:
@@ -58,4 +63,5 @@ async def upload_analysis(
 
 @router.get("/{analysis_id}")
 def get_analysis(record: AnalysisRecord = Depends(require_analysis)) -> dict:
+    """Return an analysis after merchant ownership has been enforced."""
     return analysis_summary(record)

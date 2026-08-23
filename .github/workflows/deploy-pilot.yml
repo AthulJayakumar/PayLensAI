@@ -1,4 +1,5 @@
 name: Deploy pilot
+# This workflow is deliberately manual and uses short-lived GitHub OIDC credentials.
 on:
   workflow_dispatch:
     inputs:
@@ -25,6 +26,7 @@ jobs:
         run: npm ci
       - working-directory: infrastructure
         run: npx cdk deploy PayLens-pilot-Images --require-approval never -c environment=pilot
+      # Repositories must exist before building and publishing immutable commit-tagged images.
       - id: ecr
         run: |
           ACCOUNT=$(aws sts get-caller-identity --query Account --output text)
@@ -37,6 +39,7 @@ jobs:
           docker push "${{ steps.ecr.outputs.registry }}/paylens-pilot-frontend:${GITHUB_SHA}"
       - working-directory: infrastructure
         run: npx cdk deploy PayLens-pilot PayLens-pilot-Costs --require-approval never -c environment=pilot -c imageTag=${GITHUB_SHA} --parameters PayLens-pilot:BudgetAlertEmail=${{ secrets.BUDGET_ALERT_EMAIL }} --parameters PayLens-pilot:OriginVerifyHeader=${{ secrets.ORIGIN_VERIFY_HEADER }} --parameters PayLens-pilot-Costs:BudgetAlertEmail=${{ secrets.BUDGET_ALERT_EMAIL }}
+      # Schema migration is explicit and must succeed before services are recycled and probed.
       - name: Explicit migration task
         shell: bash
         run: bash scripts/run-migrations.sh pilot

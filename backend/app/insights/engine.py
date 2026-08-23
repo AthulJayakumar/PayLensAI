@@ -49,6 +49,7 @@ class InsightEngine:
     ) -> list[Insight]:
         """Discover insights using all history before ``current_start`` as baseline."""
 
+        # Materialize once because the same records feed time splits and many segment combinations.
         records = list(transactions)
         baseline_records = [item for item in records if item.transaction_created_at < current_start]
         current_records = [
@@ -57,12 +58,14 @@ class InsightEngine:
             if item.transaction_created_at >= current_start
             and (current_end is None or item.transaction_created_at < current_end)
         ]
+        # Overall metrics let detectors compare a segment with merchant-wide performance.
         overall = DetectionContext(
             segment={},
             baseline=calculate_kpis(baseline_records),
             current=calculate_kpis(current_records),
         )
         contexts = self._segment_contexts(baseline_records, current_records)
+        # Every detector receives identical immutable evidence contexts.
         insights = [
             insight
             for detector in self.detectors
@@ -80,6 +83,7 @@ class InsightEngine:
         current_records: list[PayLensTransaction],
     ) -> list[DetectionContext]:
         contexts: list[DetectionContext] = []
+        # Build corresponding baseline/current KPI pairs for each configured slice.
         for dimensions in self.segment_combinations:
             baseline = {
                 tuple(sorted(item.segment.items())): item

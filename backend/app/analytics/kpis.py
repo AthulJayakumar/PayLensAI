@@ -45,6 +45,7 @@ def calculate_kpis(transactions: Iterable[PayLensTransaction]) -> KPIMetrics:
     - effective cost percentage: successful processed value in the same currency.
     """
 
+    # Counts drive rate denominators; currency maps keep monetary values impossible to mix.
     transaction_count = successful_count = failed_count = 0
     refund_count = dispute_count = 0
     currency_counts: defaultdict[str, int] = defaultdict(int)
@@ -57,6 +58,7 @@ def calculate_kpis(transactions: Iterable[PayLensTransaction]) -> KPIMetrics:
     provider_fees: defaultdict[str, Decimal] = defaultdict(Decimal)
     other_costs: defaultdict[str, Decimal] = defaultdict(Decimal)
 
+    # One pass accumulates all raw counts and amounts, including zero-valued optional costs.
     for transaction in transactions:
         transaction_count += 1
         currency_counts[transaction.currency] += 1
@@ -79,6 +81,7 @@ def calculate_kpis(transactions: Iterable[PayLensTransaction]) -> KPIMetrics:
         _add(refunds, transaction.currency, transaction.refund_amount)
         _add(disputes, transaction.currency, transaction.dispute_amount)
 
+    # Derived per-currency values are calculated only after the raw pass is complete.
     average = defaultdict(Decimal)
     total_costs = defaultdict(Decimal)
     effective_cost: dict[str, Decimal | None] = {}
@@ -99,6 +102,7 @@ def calculate_kpis(transactions: Iterable[PayLensTransaction]) -> KPIMetrics:
             else None
         )
 
+    # Pydantic returns one stable, typed result used by APIs, segments, and detectors.
     return KPIMetrics(
         transaction_count=transaction_count,
         successful_transaction_count=successful_count,

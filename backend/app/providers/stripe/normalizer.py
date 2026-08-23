@@ -25,6 +25,7 @@ ZERO_DECIMAL_CURRENCIES = {"BIF", "CLP", "DJF", "GNF", "JPY", "KMF", "KRW", "MGA
 
 
 def _money(value: int | None, currency: str) -> Decimal:
+    """Convert Stripe minor units while respecting zero-decimal currencies."""
     amount = Decimal(value or 0)
     return amount if currency in ZERO_DECIMAL_CURRENCIES else amount / Decimal("100")
 
@@ -45,6 +46,7 @@ FAILURE_MAP = {
 
 
 class StripeNormalizer:
+    """Translate one Stripe PaymentIntent without discarding provider evidence."""
     schema_version = "stripe-payment-intent-v1"
 
     def normalize(
@@ -55,10 +57,13 @@ class StripeNormalizer:
         raw_reference: str,
         source: SourceType,
     ) -> PayLensTransaction:
+        """Map status, method, costs, refund/dispute data, and availability flags."""
         provider_id = payment_intent["id"]
         currency = str(payment_intent["currency"]).upper()
         provider_status = str(payment_intent.get("status", "unknown"))
         error = payment_intent.get("last_payment_error") or {}
+        # Stripe exposes a richer lifecycle; PayLens maps it into stable states
+        # while retaining the original value in ``provider_status``.
         if provider_status == "succeeded":
             status = PaymentStatus.SUCCEEDED
         elif provider_status == "canceled":
@@ -68,6 +73,8 @@ class StripeNormalizer:
         else:
             status = PaymentStatus.PENDING
 
+        # Expanded API responses contain an object, whereas lean webhook payloads
+        # can contain only the charge ID. Both shapes are supported.
         charge = payment_intent.get("latest_charge") or {}
         if isinstance(charge, str):
             charge = {"id": charge}

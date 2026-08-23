@@ -1,7 +1,10 @@
+/** Evidence-focused presentation for one deterministic insight. */
+
 import { InsightDetailResponse } from "../lib/api";
 import { formatMoney, formatRate, humanise, segmentLabel } from "../lib/format";
 
 function valueRows(detail: InsightDetailResponse) {
+  // Flatten currency maps so each monetary value has an explicit currency-labelled row.
   const insight = detail.insight;
   const maps = [
     ["Affected attempted value", insight.affected_attempted_value],
@@ -47,4 +50,3 @@ export function InsightDetailView({ detail }: { detail: InsightDetailResponse })
     </>
   );
 }
-

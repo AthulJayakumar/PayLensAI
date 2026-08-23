@@ -18,9 +18,11 @@ def compare_failure_periods(
 ) -> BaselineComparison:
     """Compare failure performance using transaction-count denominators."""
 
+    # Reusing the KPI engine guarantees comparison rates use the documented denominators.
     baseline = calculate_kpis(baseline_transactions)
     current = calculate_kpis(current_transactions)
     absolute_difference = current.failure_rate - baseline.failure_rate
+    # Relative change is undefined when the baseline is zero; absolute difference still works.
     relative_change = (
         rate(absolute_difference, baseline.failure_rate)
         if baseline.failure_rate != 0
@@ -38,4 +40,3 @@ def compare_failure_periods(
         baseline_transaction_count=baseline.transaction_count,
         baseline_failed_transaction_count=baseline.failed_transaction_count,
     )
-

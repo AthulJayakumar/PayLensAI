@@ -27,6 +27,7 @@ def _aware(value: datetime) -> datetime:
 
 
 class PostgreSQLAnalysisRepository(AnalysisRepository):
+    """Persist analyses while keeping the API's repository contract unchanged."""
     """Transactional repository; JSONB preserves canonical inputs and insights."""
 
     def __init__(self, engine) -> None:
@@ -41,6 +42,7 @@ class PostgreSQLAnalysisRepository(AnalysisRepository):
                 row.name = name
 
     def save(self, analysis: AnalysisRecord) -> None:
+        """Atomically replace insight rows and upsert canonical transactions."""
         self.ensure_merchant(analysis.merchant_id, analysis.merchant_id)
         with Session(self.engine) as session, session.begin():
             row = session.get(AnalysisRow, analysis.analysis_id)
@@ -73,6 +75,7 @@ class PostgreSQLAnalysisRepository(AnalysisRepository):
                     payload=insight.model_dump(mode="json"),
                 ))
 
+            # Provider identity, not analysis ID, defines canonical uniqueness.
             for transaction in analysis.transactions:
                 existing = session.scalar(select(CanonicalTransactionRow).where(
                     CanonicalTransactionRow.merchant_id == analysis.merchant_id,
@@ -97,6 +100,7 @@ class PostgreSQLAnalysisRepository(AnalysisRepository):
                     existing.updated_at = utcnow()
 
     def get(self, analysis_id: str) -> AnalysisRecord | None:
+        """Rehydrate validated domain models rather than exposing ORM rows."""
         with Session(self.engine) as session:
             row = session.get(AnalysisRow, analysis_id)
             if row is None:

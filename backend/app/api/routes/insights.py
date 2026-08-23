@@ -1,3 +1,5 @@
+"""Insight list/detail endpoints with deterministic filtering and ordering."""
+
 from fastapi import APIRouter, Depends, Query
 
 from app.api.dependencies import get_explanation_provider, require_analysis
@@ -24,6 +26,7 @@ def get_insights(
     provider: str | None = None,
     record: AnalysisRecord = Depends(require_analysis),
 ) -> dict:
+    """Filter structured insights and order the most severe results first."""
     insights = record.result.insights
     if severity is not None:
         insights = [item for item in insights if item.severity == severity]
@@ -46,6 +49,7 @@ def get_insight(
     record: AnalysisRecord = Depends(require_analysis),
     explanation_provider: ExplanationProvider = Depends(get_explanation_provider),
 ) -> dict:
+    """Return one structured insight plus its optional human-readable explanation."""
     insight = next((item for item in record.result.insights if item.id == insight_id), None)
     if insight is None:
         raise APIError(
@@ -58,4 +62,3 @@ def get_insight(
         "insight": insight_payload(insight),
         "explanation": explanation_provider.explain(insight).model_dump(),
     }
-

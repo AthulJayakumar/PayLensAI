@@ -22,6 +22,7 @@ def _stripe_dict(value) -> dict:
 
 
 class StripeTransport(ABC):
+    """Network boundary that allows Stripe calls to be replaced by test doubles."""
     @abstractmethod
     def exchange_token(self, developer_api_key: str, form: dict[str, str]) -> dict: ...
 
@@ -39,6 +40,7 @@ class StripeTransport(ABC):
 
 
 class OfficialStripeTransport(StripeTransport):
+    """Concrete HTTP/SDK implementation used only when credentials are configured."""
     def exchange_token(self, developer_api_key: str, form: dict[str, str]) -> dict:
         response = httpx.post(
             "https://api.stripe.com/v1/oauth/token",
@@ -81,6 +83,7 @@ class OfficialStripeTransport(StripeTransport):
 
 
 class StripeConnector(PaymentProviderConnector):
+    """Stripe Apps OAuth and paginated PaymentIntent connector."""
     provider = "STRIPE"
     authorization_endpoint = "https://marketplace.stripe.com/oauth/v2/authorize"
 
@@ -128,6 +131,7 @@ class StripeConnector(PaymentProviderConnector):
         starting_after: str | None = None,
         created_after: datetime | None = None,
     ) -> ProviderPage:
+        """Fetch one retry-safe page and expose the next Stripe cursor."""
         params: dict = {
             "limit": 100,
             "expand": ["data.latest_charge.balance_transaction", "data.latest_charge.payment_method_details"],
@@ -156,5 +160,6 @@ class StripeConnector(PaymentProviderConnector):
 
     @staticmethod
     def verify_webhook(payload: bytes, signature: str, endpoint_secret: str) -> dict:
+        """Delegate exact-byte signature validation to Stripe's maintained SDK."""
         event = stripe.Webhook.construct_event(payload, signature, endpoint_secret)
         return _stripe_dict(event)

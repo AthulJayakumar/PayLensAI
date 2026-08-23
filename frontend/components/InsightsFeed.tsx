@@ -1,7 +1,10 @@
+/** Prioritized insight list used on the main analysis dashboard. */
+
 import { Insight } from "../lib/api";
 import { formatMoney, formatRate, humanise, segmentLabel } from "../lib/format";
 
 function firstMoney(insight: Insight): [string, string] | null {
+  // Choose the detector's first relevant impact measure for a compact summary.
   const maps = [insight.affected_attempted_value, insight.affected_payment_cost, insight.affected_refund_amount, insight.affected_dispute_amount];
   for (const values of maps) {
     const first = Object.entries(values)[0];
@@ -39,4 +42,3 @@ export function InsightsFeed({ analysisId, insights }: { analysisId: string; ins
     </section>
   );
 }
-

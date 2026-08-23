@@ -29,12 +29,14 @@ def get_explanation_provider(request: Request) -> ExplanationProvider:
 
 
 def get_current_merchant(request: Request) -> AuthenticatedMerchant:
+    """Authenticate once and ensure persistence knows the trusted merchant."""
     merchant = request.app.state.authenticator.authenticate(request)
     get_repository(request).ensure_merchant(merchant.merchant_id, merchant.name)
     return merchant
 
 
 def require_roles(*allowed: MerchantRole):
+    """Build a dependency that allows only the supplied merchant roles."""
     def dependency(merchant: AuthenticatedMerchant = Depends(get_current_merchant)) -> AuthenticatedMerchant:
         if merchant.role not in allowed:
             raise APIError(status_code=403, code="ROLE_FORBIDDEN", message="Your merchant role cannot perform this action.")
@@ -47,6 +49,7 @@ def require_analysis(
     request: Request,
     merchant: AuthenticatedMerchant = Depends(get_current_merchant),
 ) -> AnalysisRecord:
+    """Load an analysis only if the authenticated merchant owns it."""
     record = get_repository(request).get_for_merchant(analysis_id, merchant.merchant_id)
     if record is None:
         raise APIError(

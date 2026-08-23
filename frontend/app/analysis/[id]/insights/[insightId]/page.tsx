@@ -1,5 +1,7 @@
 "use client";
 
+/** Drill-down route for the evidence and explanation attached to one insight. */
+
 import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { AppHeader } from "../../../../../components/AppHeader";
@@ -22,4 +24,3 @@ export default function InsightDetailPage() {
     </main>
   );
 }
-

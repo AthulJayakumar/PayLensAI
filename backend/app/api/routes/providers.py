@@ -1,3 +1,5 @@
+"""Stripe connection, synchronization, reconciliation, and disconnect routes."""
+
 from __future__ import annotations
 
 import os
@@ -23,6 +25,7 @@ class SyncRequest(BaseModel):
 
 
 def connection_payload(connection) -> dict:
+    """Expose connection metadata without returning encrypted credentials."""
     if connection is None:
         return {"provider": "STRIPE", "status": "NOT_CONNECTED", "configured": False}
     return connection.model_dump(mode="json")
@@ -33,6 +36,7 @@ def provider_status(
     merchant: AuthenticatedMerchant = Depends(get_current_merchant),
     service: ProviderService = Depends(get_provider_service),
 ) -> dict:
+    """Describe Stripe configuration and connection state for this merchant."""
     connection = service.status(merchant.merchant_id)
     return {"providers": [{**connection_payload(connection), "configured": service.connector is not None}]}
 
@@ -42,6 +46,7 @@ def authorize_stripe(
     merchant: AuthenticatedMerchant = Depends(require_roles(MerchantRole.OWNER, MerchantRole.ADMIN)),
     service: ProviderService = Depends(get_provider_service),
 ) -> dict:
+    """Issue protected OAuth state and return Stripe's authorization URL."""
     return {"authorization_url": service.authorization_url(merchant.merchant_id)}
 
 
@@ -51,6 +56,7 @@ def stripe_oauth_callback(
     state: str = Query(..., min_length=32, max_length=2048),
     service: ProviderService = Depends(get_provider_service),
 ) -> RedirectResponse:
+    """Consume the one-time callback and redirect to the provider screen."""
     service.complete_authorization(code=code, state=state)
     frontend_url = os.environ.get("PAYLENS_FRONTEND_URL", "http://localhost:3000").rstrip("/")
     return RedirectResponse(f"{frontend_url}/providers?stripe=connected", status_code=303)
@@ -63,6 +69,7 @@ def sync_stripe(
     merchant: AuthenticatedMerchant = Depends(require_roles(MerchantRole.OWNER, MerchantRole.ADMIN, MerchantRole.ANALYST)),
     service: ProviderService = Depends(get_provider_service),
 ) -> dict:
+    """Queue a durable sync on AWS or execute it synchronously locally."""
     jobs = getattr(http_request.app.state, "job_service", None)
     if jobs is not None:
         connection = service.status(merchant.merchant_id)
@@ -83,6 +90,7 @@ def get_sync_job(
     merchant: AuthenticatedMerchant = Depends(get_current_merchant),
     service: ProviderService = Depends(get_provider_service),
 ) -> dict:
+    """Return a provider sync job only when the merchant owns it."""
     job = service.repository.get_sync_job(job_id, merchant.merchant_id)
     if job is None:
         raise APIError(status_code=404, code="SYNC_JOB_NOT_FOUND", message="The sync job does not exist for this merchant.")
@@ -94,6 +102,7 @@ def reconcile_stripe(
     merchant: AuthenticatedMerchant = Depends(require_roles(MerchantRole.OWNER, MerchantRole.ADMIN)),
     service: ProviderService = Depends(get_provider_service),
 ) -> dict:
+    """Detect and repair drift between Stripe and canonical transactions."""
     return {"reconciliation": service.reconcile(merchant.merchant_id).model_dump()}
 
 
@@ -102,4 +111,5 @@ def disconnect_stripe(
     merchant: AuthenticatedMerchant = Depends(require_roles(MerchantRole.OWNER, MerchantRole.ADMIN)),
     service: ProviderService = Depends(get_provider_service),
 ) -> None:
+    """Attempt provider revocation, remove local credentials, and audit it."""
     service.disconnect(merchant.merchant_id, actor_id=merchant.actor_id)

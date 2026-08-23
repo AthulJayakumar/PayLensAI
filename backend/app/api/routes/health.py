@@ -1,3 +1,5 @@
+"""Liveness and dependency-readiness probes for local and container runtimes."""
+
 from fastapi import APIRouter, Request
 from sqlalchemy import text
 
@@ -7,11 +9,13 @@ router = APIRouter(tags=["health"])
 
 @router.get("/health")
 def health() -> dict:
+    """Report that the API process is alive without checking dependencies."""
     return {"status": "ok", "service": "paylens-api", "version": "0.5.0"}
 
 
 @router.get("/health/ready")
 def ready(request: Request) -> dict:
+    """Verify the configured SQL database can accept a trivial query."""
     engine = getattr(request.app.state, "database_engine", None)
     if engine is not None:
         with engine.connect() as connection:

@@ -1,5 +1,7 @@
 "use client";
 
+/** Minimal pilot sign-in page backed directly by the configured Cognito user pool. */
+
 import { FormEvent, useState } from "react";
 import { API_URL } from "../../lib/api";
 
@@ -12,6 +14,7 @@ export default function LoginPage() {
   async function signIn(event: FormEvent) {
     event.preventDefault(); setBusy(true); setError("");
     try {
+      // Public pool identifiers come from the API so deployments do not bake them into this bundle.
       const configResponse = await fetch(`${API_URL}/auth/config`);
       const config = await configResponse.json();
       if (!config.region || !config.client_id) throw new Error("Pilot authentication is not configured.");
@@ -21,6 +24,7 @@ export default function LoginPage() {
       });
       const result = await response.json();
       if (!response.ok || !result.AuthenticationResult?.AccessToken) throw new Error("Email or password was not accepted.");
+      // Session storage intentionally drops the access token when the browser session ends.
       window.sessionStorage.setItem("paylens_access_token", result.AuthenticationResult.AccessToken);
       window.location.assign("/");
     } catch (cause) { setError(cause instanceof Error ? cause.message : "Sign in failed."); setBusy(false); }

@@ -1,9 +1,12 @@
 "use client";
 
+/** CSV picker and analysis-submission workflow with local/AWS job support. */
+
 import { ChangeEvent, FormEvent, useRef, useState } from "react";
 import { AnalysisSummary, JobResponse, uploadAnalysis, waitForJob } from "../lib/api";
 
 type UploadPanelProps = {
+  // Injectable operations allow UI tests to avoid real HTTP calls and timers.
   onComplete: (analysisId: string) => void;
   uploader?: (file: File) => Promise<AnalysisSummary | JobResponse>;
   jobWaiter?: typeof waitForJob;
@@ -39,6 +42,7 @@ export function UploadPanel({ onComplete, uploader = uploadAnalysis, jobWaiter =
     try {
       const result = await uploader(file);
       if ("job" in result) {
+        // The cloud path queues large work; the local path returns an analysis immediately.
         const completed = await jobWaiter(result.job.id);
         if (!completed.result.analysis_id) throw new Error("The completed analysis job returned no analysis identifier.");
         onComplete(completed.result.analysis_id);

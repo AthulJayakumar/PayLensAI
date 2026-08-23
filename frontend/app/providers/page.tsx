@@ -1,3 +1,5 @@
+/** Provider-management route; connector behavior lives in the testable client component. */
+
 import { AppHeader } from "../../components/AppHeader";
 import { ProviderConnections } from "../../components/ProviderConnections";
 

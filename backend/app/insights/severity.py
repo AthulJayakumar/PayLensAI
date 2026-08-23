@@ -30,6 +30,7 @@ def classify_severity(
     if sample_size < 100:
         return Severity.LOW
 
+    # Additive score bands combine change magnitude, current risk, exposure, and evidence volume.
     score = 0
     magnitude = abs(relative_change or Decimal("0"))
     if magnitude >= Decimal("2"):
@@ -55,6 +56,7 @@ def classify_severity(
     elif sample_size >= 250:
         score += 1
 
+    # Thresholds are explicit and testable; no model or subjective text affects priority.
     if score >= 7:
         return Severity.CRITICAL
     if score >= 5:
@@ -72,4 +74,3 @@ def detection_confidence(sample_size: int, relative_change: Decimal | None) -> D
     return min(Decimal("0.99"), Decimal("0.40") + sample_component + change_component).quantize(
         Decimal("0.000001")
     )
-

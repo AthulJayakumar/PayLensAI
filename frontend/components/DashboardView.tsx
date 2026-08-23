@@ -1,3 +1,5 @@
+/** Pure dashboard renderer: all network loading is handled by the route component. */
+
 import { AnalysisSummary, Insight, KpiResponse, SegmentsResponse } from "../lib/api";
 import { formatInteger, formatMoney, formatRate } from "../lib/format";
 import { InsightsFeed } from "./InsightsFeed";
@@ -58,4 +60,3 @@ export function DashboardView({ summary, kpis, insights, performance, dashboardL
     </>
   );
 }
-

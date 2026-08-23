@@ -36,6 +36,7 @@ load_dotenv()
 
 
 def _database_url() -> str | None:
+    """Build a SQLAlchemy URL for local or Secrets Manager-injected settings."""
     if os.environ.get("DATABASE_URL"):
         return os.environ["DATABASE_URL"]
     if os.environ.get("DB_HOST"):
@@ -53,6 +54,11 @@ def create_app(
     explanation_provider: ExplanationProvider | None = None,
     max_upload_bytes: int = DEFAULT_MAX_UPLOAD_BYTES,
 ) -> FastAPI:
+    """Compose PayLens from replaceable runtime adapters.
+
+    Business code depends on interfaces; this factory alone decides whether
+    memory, PostgreSQL, S3, SQS, local API keys, or Cognito backs them.
+    """
     environment = os.environ.get("PAYLENS_ENV", "local").lower()
     app = FastAPI(
         title="PayLens API",
@@ -70,6 +76,7 @@ def create_app(
         allow_methods=["GET", "POST", "OPTIONS"],
         allow_headers=["Authorization", "Content-Type", "X-PayLens-Dev-Key", "Stripe-Signature", "X-Request-ID"],
     )
+    # Persistence is optional locally but configured through injected secrets on ECS.
     database_url = _database_url()
     engine = create_engine_from_url(database_url) if database_url else None
     app.state.database_engine = engine
@@ -90,6 +97,7 @@ def create_app(
         repository = PostgreSQLAnalysisRepository(engine)
     app.state.analysis_repository = repository or InMemoryAnalysisRepository()
     pilot_repository = SQLPilotRepository(engine) if engine is not None else InMemoryPilotRepository()
+    # Never select local API-key authentication implicitly outside local/test.
     if authenticator is None:
         if environment in {"local", "test"}:
             authenticator = DevelopmentApiKeyAuthenticator.from_environment()
@@ -104,6 +112,7 @@ def create_app(
     app.state.analysis_service = AnalysisService(
         app.state.analysis_repository, max_upload_bytes=max_upload_bytes, audit_store=pilot_repository
     )
+    # Provider orchestration is unchanged even when persistence moves to SQL/S3.
     if provider_service is None:
         provider_repository = SQLProviderRepository(engine) if engine is not None else InMemoryProviderRepository()
         if os.environ.get("PAYLENS_RAW_BUCKET"):
@@ -137,6 +146,7 @@ def create_app(
     app.state.provider_service = provider_service
     app.state.job_service = None
     app.state.analysis_upload_store = None
+    # Queue URLs switch long operations from synchronous calls to durable jobs.
     if os.environ.get("PAYLENS_PROVIDER_SYNC_QUEUE_URL"):
         from app.jobs import JobService, S3AnalysisUploadStore, SQSJobQueue
         from app.providers.models import JobType
@@ -146,6 +156,7 @@ def create_app(
         app.state.job_service = JobService(pilot_repository, SQSJobQueue(queue_urls))
         if os.environ.get("PAYLENS_RAW_BUCKET"):
             app.state.analysis_upload_store = S3AnalysisUploadStore(bucket=os.environ["PAYLENS_RAW_BUCKET"], kms_key_id=os.environ["PAYLENS_RAW_KMS_KEY_ID"])
+    # Routers are thin HTTP adapters; reusable work remains in services.
     install_error_handlers(app)
     app.include_router(health.router)
     api_prefix = os.environ.get("PAYLENS_API_PREFIX", "")

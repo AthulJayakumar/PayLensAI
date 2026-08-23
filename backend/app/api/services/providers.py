@@ -29,6 +29,7 @@ def _id(prefix: str) -> str:
 
 
 class ProviderService:
+    """Coordinate Stripe without leaking provider details into analytics code."""
     def __init__(
         self,
         *,
@@ -73,6 +74,7 @@ class ProviderService:
         return connector.authorize(state=state, redirect_uri=self.redirect_uri)
 
     def complete_authorization(self, *, code: str, state: str) -> ProviderConnection:
+        """Consume OAuth state, exchange code, encrypt tokens, and save connection."""
         connector = self._configured_connector()
         try:
             merchant_id = self.state_manager.consume(state)
@@ -100,6 +102,7 @@ class ProviderService:
         return connection
 
     def disconnect(self, merchant_id: str, *, actor_id: str | None = None) -> bool:
+        """Attempt remote deauthorization but always remove local access."""
         connection = self.status(merchant_id)
         revoked = False
         if connection and connection.provider_account_id and self.connector is not None:
@@ -113,6 +116,7 @@ class ProviderService:
         return revoked
 
     def _credentials(self, connection: ProviderConnection) -> ProviderCredentials:
+        """Load/decrypt credentials and refresh them before expiry when possible."""
         access_token, refresh_token = self.credential_vault.load(connection.id)
         if connection.token_expires_at and connection.token_expires_at <= datetime.now(timezone.utc) + timedelta(minutes=5):
             if not refresh_token:
@@ -129,6 +133,7 @@ class ProviderService:
         return ProviderCredentials(access_token=access_token, refresh_token=refresh_token, expires_at=connection.token_expires_at)
 
     def sync(self, merchant: AuthenticatedMerchant, *, resume_job_id: str | None = None) -> SyncJob:
+        """Page through Stripe, preserve raw objects, normalize, and analyse them."""
         connector = self._configured_connector()
         connection = self.status(merchant.merchant_id)
         if connection is None or connection.status != ConnectionStatus.CONNECTED:
@@ -199,6 +204,7 @@ class ProviderService:
         )
 
     def process_webhook(self, payload: bytes, signature: str) -> dict:
+        """Verify a local-mode webhook then pass its trusted event onward."""
         if not self.webhook_secret:
             raise APIError(status_code=503, code="STRIPE_WEBHOOK_NOT_CONFIGURED", message="Stripe webhook verification is not configured.")
         try:
@@ -211,6 +217,7 @@ class ProviderService:
         return self.process_verified_webhook(event, already_recorded=True)
 
     def accept_verified_webhook(self, event: dict) -> dict:
+        """Preserve and deduplicate a signature-verified event before queueing."""
         connection = self.repository.find_connection_by_account("STRIPE", event.get("account", ""))
         if connection is None:
             raise APIError(status_code=404, code="STRIPE_CONNECTION_NOT_FOUND", message="No merchant connection matches this Stripe event.")
@@ -221,6 +228,7 @@ class ProviderService:
         return {"status": "accepted", "event_id": event["id"], "merchant_id": connection.merchant_id}
 
     def process_verified_webhook(self, event: dict, *, already_recorded: bool = False) -> dict:
+        """Normalize the event's transaction update after durable acceptance."""
         connection = self.repository.find_connection_by_account("STRIPE", event.get("account", ""))
         if connection is None:
             raise APIError(status_code=404, code="STRIPE_CONNECTION_NOT_FOUND", message="No merchant connection matches this Stripe event.")
@@ -257,6 +265,7 @@ class ProviderService:
         return {"status": "ignored", "event_id": event["id"]}
 
     def reconcile(self, merchant_id: str) -> ReconciliationResult:
+        """Fetch provider truth and repair missing or changed canonical rows."""
         connector = self._configured_connector()
         connection = self.status(merchant_id)
         if connection is None:

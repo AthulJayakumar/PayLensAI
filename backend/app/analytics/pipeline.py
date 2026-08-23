@@ -42,8 +42,10 @@ def analyse_csv(
 ) -> AnalysisResult:
     """Load, calculate overall KPIs, and discover structured insights."""
 
+    # Separate monotonic timers expose loading, KPI, detector, and end-to-end costs.
     total_started = perf_counter()
     load_started = perf_counter()
+    # Validation and canonical model construction happen at the input boundary.
     transactions = load_transactions_csv(path)
     load_finished = perf_counter()
 
@@ -52,6 +54,7 @@ def analyse_csv(
     kpi_finished = perf_counter()
 
     insight_started = perf_counter()
+    # Callers may inject a detector configuration; production uses the deterministic defaults.
     insights = (insight_engine or InsightEngine()).analyse(
         transactions, current_start=current_start, current_end=current_end
     )
@@ -68,4 +71,3 @@ def analyse_csv(
             total_processing_seconds=insight_finished - total_started,
         ),
     )
-

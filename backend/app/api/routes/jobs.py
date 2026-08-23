@@ -1,3 +1,5 @@
+"""Read-only API for polling asynchronous job state."""
+
 from fastapi import APIRouter, Depends, Request
 
 from app.api.auth import AuthenticatedMerchant
@@ -9,6 +11,7 @@ router = APIRouter(prefix="/jobs", tags=["jobs"])
 
 @router.get("/{job_id}")
 def job_status(job_id: str, request: Request, merchant: AuthenticatedMerchant = Depends(get_current_merchant)) -> dict:
+    """Return a job only when it belongs to the authenticated merchant."""
     service = getattr(request.app.state, "job_service", None)
     job = service.get_owned(job_id, merchant.merchant_id) if service else None
     if job is None:

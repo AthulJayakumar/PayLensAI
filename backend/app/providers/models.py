@@ -1,3 +1,5 @@
+"""Validated contracts shared by provider services, repositories, API, and workers."""
+
 from __future__ import annotations
 
 from datetime import datetime
@@ -7,6 +9,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 
 class ConnectionStatus(StrEnum):
+    """Lifecycle of a merchant's provider authorization."""
     PENDING = "PENDING"
     CONNECTED = "CONNECTED"
     ERROR = "ERROR"
@@ -14,6 +17,7 @@ class ConnectionStatus(StrEnum):
 
 
 class SyncStatus(StrEnum):
+    """Detailed lifecycle for historical provider synchronizations."""
     QUEUED = "QUEUED"
     PENDING = "PENDING"
     RUNNING = "RUNNING"
@@ -23,6 +27,7 @@ class SyncStatus(StrEnum):
 
 
 class ProviderConnection(BaseModel):
+    """Safe metadata; encrypted credential ciphertext is stored separately."""
     model_config = ConfigDict(extra="forbid")
 
     id: str
@@ -71,6 +76,7 @@ class SyncJob(BaseModel):
 
 
 class RawProviderObject(BaseModel):
+    """Provider-native evidence preserved before normalization."""
     model_config = ConfigDict(extra="forbid")
 
     id: str
@@ -93,6 +99,7 @@ class ProviderPage(BaseModel):
 
 
 class ReconciliationResult(BaseModel):
+    """Differences found between provider and canonical state."""
     model_config = ConfigDict(extra="forbid")
 
     checked: int = 0
@@ -116,6 +123,7 @@ class JobStatus(StrEnum):
 
 
 class AsyncJob(BaseModel):
+    """Database system-of-record for work delivered through SQS."""
     model_config = ConfigDict(extra="forbid")
 
     id: str

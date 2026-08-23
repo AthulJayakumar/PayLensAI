@@ -1,4 +1,5 @@
 services:
+  # Local development database; credentials are intentionally non-production defaults.
   postgres:
     image: postgres:17-alpine
     environment:
@@ -16,4 +17,5 @@ services:
       retries: 20
 
 volumes:
+  # Preserve local transaction and analysis state across container restarts.
   paylens-postgres:

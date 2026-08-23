@@ -1,3 +1,5 @@
+/** Shared navigation with optional context for the active analysis. */
+
 import Link from "next/link";
 
 export function AppHeader({ analysisId }: { analysisId?: string }) {

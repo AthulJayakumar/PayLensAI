@@ -16,6 +16,7 @@ from app.providers.models import AsyncJob, JobStatus, JobType
 
 
 class InMemoryJobQueue:
+    """Deterministic queue double used by local tests."""
     def __init__(self) -> None:
         self.messages: list[dict] = []
 
@@ -24,6 +25,7 @@ class InMemoryJobQueue:
 
 
 class SQSJobQueue:
+    """Send minimal job references while full payloads remain in PostgreSQL."""
     def __init__(self, queue_urls: dict[JobType, str], client=None) -> None:
         if client is None:
             import boto3
@@ -35,6 +37,7 @@ class SQSJobQueue:
 
 
 class S3AnalysisUploadStore:
+    """Stage large CSV inputs in encrypted S3 for asynchronous analysis."""
     def __init__(self, *, bucket: str, kms_key_id: str, client=None) -> None:
         if client is None:
             import boto3
@@ -42,6 +45,7 @@ class S3AnalysisUploadStore:
         self.client, self.bucket, self.kms_key_id = client, bucket, kms_key_id
 
     async def put(self, upload: UploadFile, merchant_id: str, upload_id: str, max_bytes: int) -> tuple[str, int, str]:
+        """Stream with a size cap and return an opaque tenant-scoped key."""
         filename = Path(upload.filename or "transactions.csv").name
         if not filename.lower().endswith(".csv"):
             raise ValueError("Only CSV uploads are supported")
@@ -67,6 +71,7 @@ class S3AnalysisUploadStore:
 
 
 class JobService:
+    """Persist idempotent jobs before dispatching identifiers to a queue."""
     def __init__(self, repository, queue) -> None:
         self.repository, self.queue = repository, queue
 
@@ -84,6 +89,7 @@ class JobService:
 
 
 class JobWorker:
+    """Transition durable jobs and reuse existing provider/analysis services."""
     """Executes a persisted job using the existing provider/analysis services."""
 
     def __init__(self, repository, provider_service, *, analysis_service=None, upload_store=None) -> None:
@@ -91,6 +97,7 @@ class JobWorker:
         self.analysis_service, self.upload_store = analysis_service, upload_store
 
     def execute(self, job_id: str, merchant_id: str) -> AsyncJob:
+        """Run one job with explicit RUNNING/COMPLETED/FAILED persistence."""
         job = self.repository.get_job(job_id, merchant_id)
         if job is None:
             raise KeyError(job_id)
@@ -98,6 +105,8 @@ class JobWorker:
             return job
         job = job.model_copy(update={"status": JobStatus.RUNNING, "attempts": job.attempts + 1, "updated_at": datetime.now(timezone.utc)})
         self.repository.save_job(job)
+        # These branches orchestrate existing services rather than duplicating
+        # Stripe normalization or analytics logic inside the worker.
         try:
             if job.type == JobType.PROVIDER_SYNC:
                 merchant = AuthenticatedMerchant(merchant_id=job.merchant_id, name="Queued merchant", actor_id=job.payload.get("actor_id"))

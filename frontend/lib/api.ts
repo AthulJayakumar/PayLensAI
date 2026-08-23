@@ -1,7 +1,10 @@
+/** Typed browser client for the PayLens HTTP API. */
+
 export const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 const DEV_API_KEY = process.env.NEXT_PUBLIC_PAYLENS_DEV_API_KEY ?? "";
 
 function authHeaders(): HeadersInit {
+  // Production uses a short-lived Cognito token; the development key is local-only fallback.
   const token = typeof window !== "undefined" ? window.sessionStorage.getItem("paylens_access_token") : null;
   if (token) return { Authorization: `Bearer ${token}` };
   return DEV_API_KEY ? { "X-PayLens-Dev-Key": DEV_API_KEY } : {};
@@ -111,6 +114,7 @@ export class PayLensApiError extends Error {
 }
 
 async function parseResponse<T>(response: Response): Promise<T> {
+  // Convert the API's stable error envelope into one exception shape for all UI callers.
   const body = await response.json();
   if (!response.ok) {
     throw new PayLensApiError(body?.error?.code ?? "API_ERROR", body?.error?.message ?? "PayLens request failed.");
@@ -129,6 +133,7 @@ export async function fetchJob(jobId: string): Promise<JobResponse> {
 }
 
 export async function waitForJob(jobId: string, intervalMs = 1000): Promise<AsyncJob> {
+  // Poll until the worker reaches a terminal state. The default delay avoids a tight request loop.
   for (;;) {
     const { job } = await fetchJob(jobId);
     if (job.status === "COMPLETED") return job;

@@ -1,5 +1,7 @@
 "use client";
 
+/** Landing page: introduces the workflow and starts a CSV-backed analysis. */
+
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { UploadPanel } from "../components/UploadPanel";

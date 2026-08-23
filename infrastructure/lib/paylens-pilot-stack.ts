@@ -1,3 +1,5 @@
+/** Complete low-cost pilot runtime: network, data, identity, compute, edge, and monitoring. */
+
 import * as cdk from "aws-cdk-lib";
 import { Construct } from "constructs";
 import * as cloudfront from "aws-cdk-lib/aws-cloudfront";
@@ -29,12 +31,14 @@ export class PayLensPilotStack extends cdk.Stack {
     const budgetEmail = new cdk.CfnParameter(this, "BudgetAlertEmail", { type: "String", description: "Verified operator email for cost and operational alerts" });
     const originVerify = new cdk.CfnParameter(this, "OriginVerifyHeader", { type: "String", noEcho: true, minLength: 32, description: "Random value CloudFront sends to the ALB" });
 
+    // Public application subnets avoid NAT cost; the database remains isolated and private.
     const vpc = new ec2.Vpc(this, "Vpc", { availabilityZones: ["eu-north-1a", "eu-north-1b"], natGateways: 0,
       subnetConfiguration: [
         { name: "application", subnetType: ec2.SubnetType.PUBLIC, cidrMask: 24 },
         { name: "database", subnetType: ec2.SubnetType.PRIVATE_ISOLATED, cidrMask: 24 },
       ],
     });
+    // A retained rotating key protects raw imports and application/provider secrets.
     const dataKey = new kms.Key(this, "DataKey", { enableKeyRotation: true, alias: `alias/${prefix}-data`, removalPolicy: cdk.RemovalPolicy.RETAIN });
     const rawBucket = new s3.Bucket(this, "RawBucket", { bucketName: undefined, encryption: s3.BucketEncryption.KMS,
       encryptionKey: dataKey, blockPublicAccess: s3.BlockPublicAccess.BLOCK_ALL, enforceSSL: true,
@@ -44,6 +48,7 @@ export class PayLensPilotStack extends cdk.Stack {
         transitions: [{ storageClass: s3.StorageClass.INFREQUENT_ACCESS, transitionAfter: cdk.Duration.days(30) }] }],
     });
 
+    // Each workload has independent retries and a DLQ so one failure class cannot block another.
     const makeQueue = (name: string, timeoutSeconds: number) => {
       const dlq = new sqs.Queue(this, `${name}Dlq`, { queueName: `${prefix}-${name}-dlq`, encryption: sqs.QueueEncryption.KMS_MANAGED,
         retentionPeriod: cdk.Duration.days(14) });
@@ -56,6 +61,7 @@ export class PayLensPilotStack extends cdk.Stack {
     const analysis = makeQueue("analysis", 900);
     const webhook = makeQueue("webhook", 300);
 
+    // Security groups restrict PostgreSQL ingress to ECS application tasks.
     const dbSg = new ec2.SecurityGroup(this, "DatabaseSg", { vpc, allowAllOutbound: false, description: "RDS accepts PostgreSQL only from PayLens tasks" });
     const taskSg = new ec2.SecurityGroup(this, "TaskSg", { vpc, allowAllOutbound: true, description: "No public ingress; outbound via public IP avoids NAT" });
     dbSg.addIngressRule(taskSg, ec2.Port.tcp(5432), "PayLens tasks only");
@@ -76,6 +82,7 @@ export class PayLensPilotStack extends cdk.Stack {
     const stripeSecret = new secretsmanager.Secret(this, "StripeSecret", { secretName: `${prefix}/stripe`, encryptionKey: dataKey,
       secretObjectValue: { appClientId: cdk.SecretValue.unsafePlainText("NOT_CONFIGURED"), developerApiKey: cdk.SecretValue.unsafePlainText("NOT_CONFIGURED"), webhookSecret: cdk.SecretValue.unsafePlainText("NOT_CONFIGURED") } });
 
+    // Pilot accounts are administrator-provisioned; optional TOTP strengthens authenticated access.
     const userPool = new cognito.UserPool(this, "UserPool", { userPoolName: `${prefix}-users`, selfSignUpEnabled: false,
       signInAliases: { email: true }, standardAttributes: { email: { required: true, mutable: true } },
       passwordPolicy: { minLength: 12, requireDigits: true, requireLowercase: true, requireUppercase: true, requireSymbols: true },
@@ -86,6 +93,7 @@ export class PayLensPilotStack extends cdk.Stack {
       authFlows: { userSrp: true, userPassword: true }, preventUserExistenceErrors: true, accessTokenValidity: cdk.Duration.hours(1),
     });
 
+    // API, worker, and web processes scale/deploy independently on one Fargate cluster.
     const cluster = new ecs.Cluster(this, "Cluster", { vpc, clusterName: prefix, containerInsightsV2: ecs.ContainerInsights.ENABLED });
     const apiLog = new logs.LogGroup(this, "ApiLog", { logGroupName: `/paylens/${props.environment}/api`, retention: logs.RetentionDays.ONE_MONTH });
     const workerLog = new logs.LogGroup(this, "WorkerLog", { logGroupName: `/paylens/${props.environment}/worker`, retention: logs.RetentionDays.ONE_MONTH });
@@ -122,6 +130,7 @@ export class PayLensPilotStack extends cdk.Stack {
       environment: commonEnvironment, secrets: commonSecrets, logging: ecs.LogDrivers.awsLogs({ logGroup: workerLog, streamPrefix: "worker" }) });
     const frontendContainer = frontendTask.addContainer("frontend", { image: frontendImage, logging: ecs.LogDrivers.awsLogs({ logGroup: frontendLog, streamPrefix: "frontend" }) });
     frontendContainer.addPortMappings({ containerPort: 3000 });
+    // Least-privilege grants attach data access only to backend roles that need it.
     for (const task of [apiTask, workerTask]) {
       rawBucket.grantReadWrite(task.taskRole); dataKey.grantEncryptDecrypt(task.taskRole); database.secret!.grantRead(task.executionRole!);
       appSecret.grantRead(task.executionRole!); stripeSecret.grantRead(task.executionRole!);
@@ -139,6 +148,7 @@ export class PayLensPilotStack extends cdk.Stack {
     const frontendService = new ecs.FargateService(this, "FrontendService", { cluster, taskDefinition: frontendTask, desiredCount: 1,
       assignPublicIp: true, vpcSubnets: { subnetType: ec2.SubnetType.PUBLIC }, securityGroups: [taskSg], circuitBreaker: { rollback: true }, minHealthyPercent: 100, maxHealthyPercent: 200 });
 
+    // CloudFront supplies a secret origin header; direct ALB requests receive the default 403.
     const albSg = new ec2.SecurityGroup(this, "AlbSg", { vpc, allowAllOutbound: false });
     albSg.addIngressRule(ec2.Peer.anyIpv4(), ec2.Port.tcp(80), "CloudFront origin HTTP");
     taskSg.addIngressRule(albSg, ec2.Port.tcp(8000), "ALB to API"); taskSg.addIngressRule(albSg, ec2.Port.tcp(3000), "ALB to frontend");
@@ -168,11 +178,13 @@ export class PayLensPilotStack extends cdk.Stack {
     workerContainer.addEnvironment("PAYLENS_CORS_ORIGINS", publicUrl);
     workerContainer.addEnvironment("STRIPE_OAUTH_REDIRECT_URI", `${publicUrl}/api/providers/stripe/oauth/callback`);
 
+    // Queue depth adds worker capacity without prematurely scaling the request-facing API.
     const workerScaling = workerService.autoScaleTaskCount({ minCapacity: 1, maxCapacity: 3 });
     workerScaling.scaleOnMetric("QueueBacklogScaling", { metric: new cloudwatch.MathExpression({ expression: "MAX([p,a,w])", usingMetrics: {
       p: providerSync.queue.metricApproximateNumberOfMessagesVisible(), a: analysis.queue.metricApproximateNumberOfMessagesVisible(), w: webhook.queue.metricApproximateNumberOfMessagesVisible(),
     }, period: cdk.Duration.minutes(1) }), scalingSteps: [{ upper: 0, change: -1 }, { lower: 1, change: +1 }, { lower: 10, change: +2 }], adjustmentType: appscaling.AdjustmentType.CHANGE_IN_CAPACITY });
 
+    // Operational alarms cover user-facing failures, poison messages, worker failures, and DB pressure.
     const alarms = new sns.Topic(this, "AlarmTopic", { displayName: `${prefix} operational alarms` });
     alarms.addSubscription(new subscriptions.EmailSubscription(budgetEmail.valueAsString));
     const alarmActions = [new cloudwatchActions.SnsAction(alarms)];
@@ -187,6 +199,7 @@ export class PayLensPilotStack extends cdk.Stack {
     const dbConnectionsAlarm = new cloudwatch.Alarm(this, "DatabaseConnectionsAlarm", { metric: database.metricDatabaseConnections(), threshold: 70, evaluationPeriods: 2, treatMissingData: cloudwatch.TreatMissingData.NOT_BREACHING });
     dbConnectionsAlarm.addAlarmAction(...alarmActions);
     new cloudwatch.Dashboard(this, "Dashboard", { dashboardName: prefix, widgets: [[new cloudwatch.GraphWidget({ title: "API target latency / 5xx", left: [alb.metrics.targetResponseTime()], right: [alb.metrics.httpCodeTarget(elbv2.HttpCodeTarget.TARGET_5XX_COUNT)] })], [new cloudwatch.GraphWidget({ title: "Queue backlog", left: [providerSync.queue.metricApproximateNumberOfMessagesVisible(), analysis.queue.metricApproximateNumberOfMessagesVisible(), webhook.queue.metricApproximateNumberOfMessagesVisible()] })]] });
+    // Deployment scripts consume these outputs instead of duplicating generated identifiers.
     new cdk.CfnOutput(this, "ApplicationUrl", { value: `https://${distribution.distributionDomainName}` });
     new cdk.CfnOutput(this, "UserPoolId", { value: userPool.userPoolId });
     new cdk.CfnOutput(this, "UserPoolClientId", { value: userPoolClient.userPoolClientId });

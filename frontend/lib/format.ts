@@ -1,3 +1,5 @@
+/** Presentation-only formatters; analytics values remain exact decimal strings from the API. */
+
 export function formatRate(value: string | null | undefined): string {
   if (value == null) return "Not available";
   return `${(Number(value) * 100).toFixed(2)}%`;
@@ -24,6 +26,7 @@ export function humanise(value: string): string {
 }
 
 export function segmentLabel(segment: Record<string, string>): string {
+  // A stable dimension order makes equivalent segment labels consistent across every view.
   const order = ["issuer_country", "card_network", "payment_method", "provider", "currency"];
   return order.filter((key) => segment[key]).map((key) => humanise(segment[key])).join(" · ") || "Overall payments";
 }

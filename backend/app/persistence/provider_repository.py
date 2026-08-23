@@ -49,6 +49,7 @@ def _job(row: SyncJobRow) -> SyncJob:
 
 
 class SQLProviderRepository(ProviderRepository):
+    """PostgreSQL implementation of connections, syncs, canonical rows, and OAuth state."""
     def __init__(self, engine) -> None:
         self.engine = engine
 
@@ -104,6 +105,7 @@ class SQLProviderRepository(ProviderRepository):
             return _job(row) if row else None
 
     def upsert_canonical(self, transaction: PayLensTransaction) -> bool:
+        """Insert once per merchant/provider transaction or update provider truth."""
         with Session(self.engine) as session, session.begin():
             row = session.scalar(select(CanonicalTransactionRow).where(
                 CanonicalTransactionRow.merchant_id == transaction.merchant_id,
@@ -134,6 +136,7 @@ class SQLProviderRepository(ProviderRepository):
             return [PayLensTransaction.model_validate(row.payload) for row in rows]
 
     def record_webhook_event(self, *, event_id: str, merchant_id: str, event_type: str, raw_object_id: str) -> bool:
+        """Return false when the database uniqueness constraint detects a replay."""
         try:
             with Session(self.engine) as session, session.begin():
                 session.add(WebhookEventRow(
@@ -150,6 +153,7 @@ class SQLProviderRepository(ProviderRepository):
             session.add(OAuthStateRow(nonce_hash=nonce_hash, merchant_id=merchant_id, created_at=created_at, expires_at=expires_at))
 
     def consume_oauth_state(self, nonce_hash: str, merchant_id: str) -> bool:
+        """Atomically mark a matching, unexpired state nonce as consumed."""
         with Session(self.engine) as session, session.begin():
             row = session.get(OAuthStateRow, nonce_hash)
             now = utcnow()
@@ -160,6 +164,7 @@ class SQLProviderRepository(ProviderRepository):
 
 
 class PostgreSQLRawProviderDataStore(RawProviderDataStore):
+    """JSONB raw-object adapter retained for local/persistent development."""
     def __init__(self, engine) -> None:
         self.engine = engine
 

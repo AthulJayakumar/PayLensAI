@@ -32,6 +32,7 @@ class Base(DeclarativeBase):
 
 
 class MerchantRow(Base):
+    """Tenant root referenced by every merchant-owned table."""
     __tablename__ = "merchants"
 
     id: Mapped[str] = mapped_column(String(64), primary_key=True)
@@ -40,6 +41,7 @@ class MerchantRow(Base):
 
 
 class AnalysisRow(Base):
+    """Analysis metadata and cached structured result documents."""
     __tablename__ = "analyses"
 
     id: Mapped[str] = mapped_column(String(100), primary_key=True)
@@ -66,6 +68,7 @@ class AnalysisInsightRow(Base):
 
 
 class CanonicalTransactionRow(Base):
+    """Canonical payload uniquely identified inside a merchant/provider pair."""
     __tablename__ = "canonical_transactions"
     __table_args__ = (
         UniqueConstraint("merchant_id", "provider", "provider_transaction_id", name="uq_canonical_provider_transaction"),
@@ -84,6 +87,7 @@ class CanonicalTransactionRow(Base):
 
 
 class ProviderConnectionRow(Base):
+    """Provider account metadata plus encrypted credential ciphertext."""
     __tablename__ = "provider_connections"
     __table_args__ = (UniqueConstraint("merchant_id", "provider", name="uq_merchant_provider_connection"),)
 
@@ -138,6 +142,7 @@ class RawProviderObjectRow(Base):
 
 
 class WebhookEventRow(Base):
+    """Unique provider event ledger enforcing webhook idempotency."""
     __tablename__ = "webhook_events"
     __table_args__ = (UniqueConstraint("provider", "provider_event_id", name="uq_provider_webhook_event"),)
 
@@ -171,6 +176,7 @@ class UserRow(Base):
 
 
 class MerchantMembershipRow(Base):
+    """User-to-merchant authorization relationship and role."""
     __tablename__ = "merchant_memberships"
 
     merchant_id: Mapped[str] = mapped_column(ForeignKey("merchants.id", ondelete="CASCADE"), primary_key=True)
@@ -180,6 +186,7 @@ class MerchantMembershipRow(Base):
 
 
 class AsyncJobRow(Base):
+    """Durable job state with merchant-scoped deduplication."""
     __tablename__ = "async_jobs"
     __table_args__ = (UniqueConstraint("merchant_id", "deduplication_key", name="uq_async_job_deduplication"),)
 
@@ -197,6 +204,7 @@ class AsyncJobRow(Base):
 
 
 class AuditEventRow(Base):
+    """Security/product event containing explicitly safe metadata only."""
     __tablename__ = "audit_events"
 
     id: Mapped[str] = mapped_column(String(100), primary_key=True)
@@ -209,4 +217,5 @@ class AuditEventRow(Base):
 
 
 def create_engine_from_url(database_url: str):
+    """Create the shared SQLAlchemy engine with stale-connection detection."""
     return create_engine(database_url, pool_pre_ping=True)

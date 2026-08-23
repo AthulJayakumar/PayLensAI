@@ -10,6 +10,7 @@ from app.providers.raw_storage import RawProviderDataStore
 
 
 class S3RawProviderDataStore(RawProviderDataStore):
+    """Store KMS-encrypted provider JSON beneath opaque tenant partitions."""
     def __init__(self, *, bucket: str, kms_key_id: str, client=None) -> None:
         if client is None:
             import boto3
@@ -21,6 +22,7 @@ class S3RawProviderDataStore(RawProviderDataStore):
         return hashlib.sha256(merchant_id.encode()).hexdigest()[:32]
 
     def _key(self, item: RawProviderObject) -> str:
+        """Build a date-partitioned key without exposing merchant/provider IDs."""
         received = item.received_at
         safe_type = item.provider_object_type.replace("/", "_")
         safe_id = hashlib.sha256(item.provider_object_id.encode()).hexdigest()[:32]
@@ -42,6 +44,7 @@ class S3RawProviderDataStore(RawProviderDataStore):
         return f"s3://{self.bucket}/{key}"
 
     def get(self, raw_id: str, merchant_id: str) -> RawProviderObject | None:
+        """Reject any URI outside the authenticated merchant's hashed prefix."""
         prefix = f"s3://{self.bucket}/"
         if not raw_id.startswith(prefix):
             return None

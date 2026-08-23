@@ -1,9 +1,11 @@
+# Build a wheel once so the runtime image contains no compiler or source checkout.
 FROM python:3.12-slim AS builder
 WORKDIR /build
 COPY pyproject.toml README.md ./
 COPY backend/app backend/app
 RUN pip wheel --no-cache-dir --wheel-dir /wheels .
 
+# Run the API as an unprivileged user with a container-native health probe.
 FROM python:3.12-slim
 ENV PYTHONUNBUFFERED=1 PYTHONDONTWRITEBYTECODE=1 PORT=8000
 RUN addgroup --system paylens && adduser --system --ingroup paylens paylens

@@ -19,11 +19,13 @@ running = True
 
 
 def stop(*_args) -> None:
+    """Ask the long-poll loop to finish cleanly after SIGTERM/SIGINT."""
     global running
     running = False
 
 
 def main() -> None:
+    """Poll every configured queue and delete messages only after success."""
     signal.signal(signal.SIGTERM, stop)
     signal.signal(signal.SIGINT, stop)
     app = create_app()
@@ -36,6 +38,7 @@ def main() -> None:
         JobType.WEBHOOK: os.environ["PAYLENS_WEBHOOK_QUEUE_URL"],
     }
     sqs = boto3.client("sqs")
+    # A single small-pilot process services all job types without duplicating code.
     while running:
         empty = True
         for queue_url in queues.values():
@@ -55,6 +58,7 @@ def main() -> None:
 
 
 def _merchant_for_job(app, job_id: str) -> str:
+    """Resolve trusted ownership from persistence, never from the SQS message."""
     repository = app.state.pilot_repository
     if hasattr(repository, "engine"):
         from sqlalchemy import select

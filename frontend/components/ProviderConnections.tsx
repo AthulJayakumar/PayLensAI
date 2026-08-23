@@ -1,5 +1,7 @@
 "use client";
 
+/** Stripe connection, synchronization, and disconnection state machine. */
+
 import { useEffect, useState } from "react";
 import {
   beginStripeConnection,
@@ -14,6 +16,7 @@ import {
 } from "../lib/api";
 
 type Props = {
+  // Injectable operations keep the component deterministic in tests.
   loader?: () => Promise<ProviderStatusResponse>;
   connector?: () => Promise<{ authorization_url: string }>;
   synchronizer?: () => Promise<{ sync_job: SyncJob } | JobResponse>;
@@ -41,6 +44,7 @@ export function ProviderConnections({
   }
 
   useEffect(() => {
+    // Ignore a late response after unmount to avoid updating abandoned component state.
     let active = true;
     loader()
       .then((result) => {
@@ -68,6 +72,7 @@ export function ProviderConnections({
     try {
       const result = await synchronizer();
       if ("job" in result) {
+        // AWS mode returns an asynchronous queue job; local mode may return a sync result directly.
         setSyncJob({ id: result.job.id, status: "PENDING", records_received: 0, records_normalised: 0, analysis_id: null, errors: [] });
         const completed = await waitForJob(result.job.id);
         setSyncJob({ id: completed.result.sync_job_id ?? result.job.id, status: completed.result.status === "COMPLETED" ? "COMPLETED" : "FAILED",

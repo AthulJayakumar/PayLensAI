@@ -1,3 +1,4 @@
+# Compile the Next.js application with the deployment-relative API path.
 FROM node:24-alpine AS build
 WORKDIR /app
 COPY package.json package-lock.json ./
@@ -11,6 +12,7 @@ RUN npm run build
 # Linux image is reduced to production dependencies.
 RUN npm prune --omit=dev --force && npm pkg set version=0.5.0
 
+# Serve only production dependencies as an unprivileged user.
 FROM node:24-alpine
 WORKDIR /app
 ENV NODE_ENV=production PORT=3000 HOSTNAME=0.0.0.0

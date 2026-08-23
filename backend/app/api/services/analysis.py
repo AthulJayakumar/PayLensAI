@@ -30,11 +30,13 @@ UPLOAD_CHUNK_BYTES = 1024 * 1024
 
 
 def _analysis_id() -> str:
+    """Create an opaque, time-sortable public analysis identifier."""
     timestamp = int(datetime.now(timezone.utc).timestamp() * 1000)
     return f"analysis_{timestamp:013X}{secrets.token_hex(6).upper()}"
 
 
 def _comparison_window(transactions) -> tuple[datetime, datetime]:
+    """Use the final fifteen days as current and earlier rows as baseline."""
     latest = max(item.transaction_created_at for item in transactions)
     next_date = latest.date() + timedelta(days=1)
     current_end = datetime.combine(next_date, time.min, tzinfo=latest.tzinfo)
@@ -42,6 +44,7 @@ def _comparison_window(transactions) -> tuple[datetime, datetime]:
 
 
 class AnalysisService:
+    """Validate uploads, run verified engines, persist results, and audit creation."""
     def __init__(
         self,
         repository: AnalysisRepository,
@@ -64,6 +67,7 @@ class AnalysisService:
     async def create_analysis(
         self, upload: UploadFile, merchant: AuthenticatedMerchant
     ) -> AnalysisRecord:
+        """Stream an untrusted upload to disk before parsing and calculation."""
         request_started = perf_counter()
         filename = Path(upload.filename or "").name
         if not filename.lower().endswith(".csv"):
@@ -72,6 +76,7 @@ class AnalysisService:
                 code="UNSUPPORTED_FILE_TYPE",
                 message="Upload a file with a .csv extension.",
             )
+        # Extensions and MIME types are screened before canonical row validation.
         allowed_content_types = {
             "text/csv",
             "application/csv",
@@ -189,6 +194,7 @@ class AnalysisService:
         filename: str,
         source: str,
     ) -> AnalysisRecord:
+        """Feed already-normalized provider rows through the same analytics path."""
         """Run the verified engine for provider-normalised canonical transactions."""
         started = perf_counter()
         transactions = [item.model_copy(update={"merchant_id": merchant.merchant_id}) for item in transactions]

@@ -1,3 +1,5 @@
+/** Reusable comparison table for any API-provided segment dimension. */
+
 import { SegmentResult } from "../lib/api";
 import { formatInteger, formatRate, segmentLabel } from "../lib/format";
 

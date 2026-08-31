@@ -69,7 +69,7 @@ export class PayLensPilotStack extends cdk.Stack {
       engine: rds.DatabaseInstanceEngine.postgres({ version: rds.PostgresEngineVersion.VER_17 }),
       instanceType: ec2.InstanceType.of(ec2.InstanceClass.BURSTABLE4_GRAVITON, ec2.InstanceSize.MICRO),
       vpc, vpcSubnets: { subnetType: ec2.SubnetType.PRIVATE_ISOLATED }, securityGroups: [dbSg],
-      credentials: rds.Credentials.fromGeneratedSecret("paylens_app"), databaseName: "paylens", port: 5432,
+      credentials: rds.Credentials.fromGeneratedSecret("paylens_app", { secretName: `${prefix}/database` }), databaseName: "paylens", port: 5432,
       allocatedStorage: 20, maxAllocatedStorage: 50, storageType: rds.StorageType.GP3, storageEncrypted: true,
       multiAz: false, publiclyAccessible: false, backupRetention: cdk.Duration.days(props.backupRetentionDays),
       deletionProtection: props.environment === "pilot", deleteAutomatedBackups: false,
@@ -161,12 +161,10 @@ export class PayLensPilotStack extends cdk.Stack {
       healthCheck: { path: "/" }, conditions: [elbv2.ListenerCondition.httpHeader("X-PayLens-Origin", [originVerify.valueAsString]), elbv2.ListenerCondition.pathPatterns(["/*"])] });
     const origin = new origins.HttpOrigin(alb.loadBalancerDnsName, { protocolPolicy: cloudfront.OriginProtocolPolicy.HTTP_ONLY,
       customHeaders: { "X-PayLens-Origin": originVerify.valueAsString } });
-    const apiCachePolicy = new cloudfront.CachePolicy(this, "ApiCachePolicy", { minTtl: cdk.Duration.seconds(0), defaultTtl: cdk.Duration.seconds(0), maxTtl: cdk.Duration.seconds(0),
-      headerBehavior: cloudfront.CacheHeaderBehavior.allowList("Authorization", "Content-Type", "Stripe-Signature", "Origin"),
-      cookieBehavior: cloudfront.CacheCookieBehavior.all(), queryStringBehavior: cloudfront.CacheQueryStringBehavior.all(),
-      enableAcceptEncodingBrotli: true, enableAcceptEncodingGzip: true });
+    // API requests are never cached. CloudFront forbids Authorization in a custom
+    // origin allow-list, so use its managed all-viewer policy while replacing Host.
     const distribution = new cloudfront.Distribution(this, "Distribution", { defaultBehavior: { origin, viewerProtocolPolicy: cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS, cachePolicy: cloudfront.CachePolicy.CACHING_DISABLED, allowedMethods: cloudfront.AllowedMethods.ALLOW_ALL }, additionalBehaviors: {
-      "/api/*": { origin, viewerProtocolPolicy: cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS, cachePolicy: apiCachePolicy, allowedMethods: cloudfront.AllowedMethods.ALLOW_ALL },
+      "/api/*": { origin, viewerProtocolPolicy: cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS, cachePolicy: cloudfront.CachePolicy.CACHING_DISABLED, originRequestPolicy: cloudfront.OriginRequestPolicy.ALL_VIEWER_EXCEPT_HOST_HEADER, allowedMethods: cloudfront.AllowedMethods.ALLOW_ALL },
       "/health": { origin, viewerProtocolPolicy: cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS, cachePolicy: cloudfront.CachePolicy.CACHING_DISABLED },
       "/assets/*": { origin, viewerProtocolPolicy: cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS, cachePolicy: cloudfront.CachePolicy.CACHING_OPTIMIZED },
     }, httpVersion: cloudfront.HttpVersion.HTTP2_AND_3 });

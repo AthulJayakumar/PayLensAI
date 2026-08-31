@@ -180,6 +180,13 @@ because CloudFormation's execution role lacked the scoped
 The core execution policy now grants that action only for the two regional
 `/cdk-bootstrap/hnb659fds/version` parameters.
 
+The next attempt created the image repositories and budget, then rolled the
+application stack back cleanly after CloudFront rejected request headers in a
+zero-TTL cache policy and the generated RDS secret name fell outside the scoped
+secret ARN. API forwarding now combines `CACHING_DISABLED` with CloudFront's
+managed `ALL_VIEWER_EXCEPT_HOST_HEADER` origin policy, and the database secret
+has the deterministic name `paylens-pilot/database`.
+
 Before attaching the example policies, the administrator must run IAM Access
 Analyzer `validate-policy` for all three identity-policy files and resolve every
 `ERROR`. The 2026-08-31 validation has zero findings for the three identity

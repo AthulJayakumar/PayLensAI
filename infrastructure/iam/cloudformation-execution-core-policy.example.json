@@ -2,6 +2,15 @@
   "Version": "2012-10-17",
   "Statement": [
     {
+      "Sid": "ReadCdkBootstrapVersion",
+      "Effect": "Allow",
+      "Action": "ssm:GetParameters",
+      "Resource": [
+        "arn:aws:ssm:eu-north-1:139438595256:parameter/cdk-bootstrap/hnb659fds/version",
+        "arn:aws:ssm:us-east-1:139438595256:parameter/cdk-bootstrap/hnb659fds/version"
+      ]
+    },
+    {
       "Sid": "RegionalPayLensResourceLifecycle",
       "Effect": "Allow",
       "Action": [

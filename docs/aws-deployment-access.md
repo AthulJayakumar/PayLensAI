@@ -174,6 +174,12 @@ policies. `PayLensPilotCloudFormationCore` and
 `us-east-1`. The GitHub OIDC provider and repository/environment-restricted
 `PayLensPilotGitHubDeployRole` were also created without access keys.
 
+The first protected deployment attempt stopped before creating the image stack
+because CloudFormation's execution role lacked the scoped
+`ssm:GetParameters` action used to resolve the CDK bootstrap-version parameter.
+The core execution policy now grants that action only for the two regional
+`/cdk-bootstrap/hnb659fds/version` parameters.
+
 Before attaching the example policies, the administrator must run IAM Access
 Analyzer `validate-policy` for all three identity-policy files and resolve every
 `ERROR`. The 2026-08-31 validation has zero findings for the three identity

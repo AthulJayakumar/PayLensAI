@@ -14,7 +14,12 @@ load_dotenv()
 config = context.config
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
-config.set_main_option("sqlalchemy.url", database_url_from_environment() or config.get_main_option("sqlalchemy.url"))
+database_url = database_url_from_environment()
+if database_url:
+    # ConfigParser treats percent signs as interpolation markers. Escaping them
+    # preserves URL-encoded credentials such as ``%40`` when Alembic reads back
+    # the SQLAlchemy URL.
+    config.set_main_option("sqlalchemy.url", database_url.replace("%", "%%"))
 target_metadata = Base.metadata
 
 

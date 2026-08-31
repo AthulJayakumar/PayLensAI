@@ -157,7 +157,8 @@ separate execution role.
 GitHub readiness completed on 2026-08-31:
 
 - CI run `33409578692` passed backend/PostgreSQL, frontend, and infrastructure;
-- `main` requires those three checks, linear history, and blocks force pushes/deletion;
+- a production-container build/probe gate was added before AWS deployment;
+- `main` requires CI, linear history, and blocks force pushes/deletion;
 - the `pilot` environment accepts only `main` and requires reviewer approval;
 - `ORIGIN_VERIFY_HEADER` is stored as an environment secret;
 - `AWS_DEPLOY_ROLE_ARN` and `BUDGET_ALERT_EMAIL` remain unset pending AWS role

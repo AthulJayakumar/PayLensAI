@@ -1,5 +1,5 @@
 name: CI
-# Every proposed change validates the database-backed API, browser app, and CDK source.
+# Every proposed change validates code, production images, and the CDK source.
 on:
   pull_request:
   push:
@@ -36,6 +36,31 @@ jobs:
         run: npm run lint
       - working-directory: frontend
         run: npm run build
+  containers:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # Build the exact Dockerfiles deployed by the pilot workflow.
+      - run: docker build -t paylens-backend:ci .
+      - run: docker run --rm paylens-backend:ci python -m app.admin.provision_user --help
+      - run: docker build -t paylens-frontend:ci frontend
+      - name: Probe production containers
+        run: |
+          docker run -d --name paylens-api-ci -p 8000:8000 paylens-backend:ci
+          docker run -d --name paylens-web-ci -p 3000:3000 paylens-frontend:ci
+          for attempt in $(seq 1 20); do
+            if curl --fail --silent http://127.0.0.1:8000/health >/dev/null && curl --fail --silent http://127.0.0.1:3000/ >/dev/null; then
+              exit 0
+            fi
+            sleep 2
+          done
+          docker logs paylens-api-ci
+          docker logs paylens-web-ci
+          exit 1
+      - name: Stop production containers
+        if: always()
+        run: |
+          docker rm -f paylens-api-ci paylens-web-ci 2>/dev/null || true
   infrastructure:
     runs-on: ubuntu-latest
     steps:

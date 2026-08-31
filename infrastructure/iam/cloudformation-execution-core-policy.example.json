@@ -142,6 +142,23 @@
       "Condition": {"StringEquals": {"aws:RequestedRegion": "eu-north-1"}}
     },
     {
+      "Sid": "PayLensSecretsKmsUsage",
+      "Effect": "Allow",
+      "Action": [
+        "kms:Decrypt",
+        "kms:GenerateDataKey"
+      ],
+      "Resource": "arn:aws:kms:eu-north-1:139438595256:key/*",
+      "Condition": {
+        "StringEquals": {
+          "kms:ViaService": "secretsmanager.eu-north-1.amazonaws.com"
+        },
+        "StringLike": {
+          "kms:EncryptionContext:SecretARN": "arn:aws:secretsmanager:eu-north-1:139438595256:secret:paylens-pilot/*"
+        }
+      }
+    },
+    {
       "Sid": "CreateRequiredServiceLinkedRoles",
       "Effect": "Allow",
       "Action": "iam:CreateServiceLinkedRole",

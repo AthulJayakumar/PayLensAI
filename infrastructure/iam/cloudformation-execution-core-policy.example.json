@@ -101,6 +101,7 @@
         "logs:DeleteMetricFilter",
         "logs:DeleteRetentionPolicy",
         "logs:DescribeLogGroups",
+        "logs:DescribeMetricFilters",
         "logs:ListTagsForResource",
         "logs:PutMetricFilter",
         "logs:PutRetentionPolicy",

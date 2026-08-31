@@ -103,7 +103,10 @@
     {
       "Sid": "ReadPilotDatabaseSecretForRds",
       "Effect": "Allow",
-      "Action": "secretsmanager:GetSecretValue",
+      "Action": [
+        "secretsmanager:GetSecretValue",
+        "secretsmanager:PutSecretValue"
+      ],
       "Resource": "arn:aws:secretsmanager:eu-north-1:139438595256:secret:paylens-pilot/database-*"
     },
     {

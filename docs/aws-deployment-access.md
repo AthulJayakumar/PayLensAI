@@ -1,6 +1,6 @@
 # AWS deployment access for the PayLens pilot
 
-Status date: 2026-08-31. Account: `169133351222`. Primary region:
+Status date: 2026-08-31. Test account: `139438595256`. Primary region:
 `eu-north-1`; the AWS Budgets stack is in `us-east-1`.
 
 The repository is published as `AthulJayakumar/PayLensAI`. Because it was
@@ -84,7 +84,7 @@ them `PayLensPilotCloudFormationCore` and
 ARNs so the permanent execution role does not default to administrator:
 
 ```powershell
-$Account="169133351222"
+$Account="139438595256"
 
 aws iam create-policy `
   --policy-name PayLensPilotCloudFormationCore `
@@ -147,7 +147,7 @@ Set `AWS_DEPLOY_ROLE_ARN` to the role ARN as a GitHub environment secret. Keep
 store an AWS access key in GitHub.
 
 The GitHub role can assume only the `hnb659fds` deploy, file-publishing,
-image-publishing, and lookup roles for account `169133351222` in `eu-north-1`
+image-publishing, and lookup roles for account `139438595256` in `eu-north-1`
 and `us-east-1`. Its direct `iam:PassRole` is restricted to PayLens ECS roles
 and `ecs-tasks.amazonaws.com`. CloudFormation permissions remain in the
 separate execution role.
@@ -156,33 +156,27 @@ separate execution role.
 
 GitHub readiness completed on 2026-08-31:
 
-- CI run `33409578692` passed backend/PostgreSQL, frontend, and infrastructure;
+- CI run `33410254715` passed backend/PostgreSQL, frontend, infrastructure,
+  and production-container probes;
 - a production-container build/probe gate was added before AWS deployment;
 - `main` requires CI, linear history, and blocks force pushes/deletion;
 - the `pilot` environment accepts only `main` and requires reviewer approval;
-- `ORIGIN_VERIFY_HEADER` is stored as an environment secret;
-- `AWS_DEPLOY_ROLE_ARN` and `BUDGET_ALERT_EMAIL` remain unset pending AWS role
-  creation and operator input.
+- `ORIGIN_VERIFY_HEADER`, `AWS_DEPLOY_ROLE_ARN`, and `BUDGET_ALERT_EMAIL` are
+  stored as protected `pilot` environment secrets.
 
-The 2026-08-31 check found that the locally configured AWS security token is
-invalid (`InvalidClientTokenId`). Re-authenticate using an administrator-approved
-short-lived session before repeating any AWS preflight.
-
-The 2026-08-23 preflight confirmed account `169133351222`, user
-`arn:aws:iam::169133351222:user/Athul`, configured region `eu-north-1`, and a
-successful deterministic pilot synthesis. Both regional checks are denied:
-
-```text
-cloudformation:DescribeStacks
-arn:aws:cloudformation:eu-north-1:169133351222:stack/CDKToolkit/*
-arn:aws:cloudformation:us-east-1:169133351222:stack/CDKToolkit/*
-```
-
-Do not attempt bootstrap or deployment until an account administrator supplies
-Approach A or the pre-created Approach B roles and policies.
+On 2026-08-31, browser-based AWS CLI authentication was verified for the
+non-root test administrator `arn:aws:iam::139438595256:user/paylens-admin`.
+The account-specific policy examples and CDK context now target this test
+account. AWS Access Analyzer reports zero findings for all three identity
+policies. `PayLensPilotCloudFormationCore` and
+`PayLensPilotCloudFormationEdgeData` were created, and `CDKToolkit` is
+`CREATE_COMPLETE` at bootstrap version `32` in both `eu-north-1` and
+`us-east-1`. The GitHub OIDC provider and repository/environment-restricted
+`PayLensPilotGitHubDeployRole` were also created without access keys.
 
 Before attaching the example policies, the administrator must run IAM Access
 Analyzer `validate-policy` for all three identity-policy files and resolve every
-`ERROR`. Local JSON parsing and managed-policy size checks pass, but the current
-user is denied `access-analyzer:ValidatePolicy`, so AWS-side policy validation
-has not been claimed.
+`ERROR`. The 2026-08-31 validation has zero findings for the three identity
+policies. The OIDC trust policy has zero errors and retains the immutable GitHub
+owner/repository-ID subject despite Access Analyzer's generic repository-format
+warning.

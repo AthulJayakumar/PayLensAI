@@ -43,7 +43,7 @@
         "cognito-idp:UpdateUserPool",
         "cognito-idp:UpdateUserPoolClient"
       ],
-      "Resource": "arn:aws:cognito-idp:eu-north-1:169133351222:userpool/*"
+      "Resource": "arn:aws:cognito-idp:eu-north-1:139438595256:userpool/*"
     },
     {
       "Sid": "PayLensS3BucketLifecycle",
@@ -96,26 +96,18 @@
         "secretsmanager:UpdateSecretVersionStage"
       ],
       "Resource": [
-        "arn:aws:secretsmanager:eu-north-1:169133351222:secret:paylens-pilot/*",
-        "arn:aws:secretsmanager:eu-north-1:169133351222:secret:rds!*"
+        "arn:aws:secretsmanager:eu-north-1:139438595256:secret:paylens-pilot/*",
+        "arn:aws:secretsmanager:eu-north-1:139438595256:secret:rds!*"
       ]
     },
     {
       "Sid": "PilotBudgetLifecycle",
       "Effect": "Allow",
       "Action": [
-        "budgets:CreateBudget",
-        "budgets:CreateNotification",
-        "budgets:CreateSubscriber",
-        "budgets:DeleteBudget",
-        "budgets:DeleteNotification",
-        "budgets:DeleteSubscriber",
-        "budgets:DescribeBudget",
-        "budgets:DescribeNotificationsForBudget",
-        "budgets:DescribeSubscribersForNotification",
-        "budgets:UpdateBudget",
-        "budgets:UpdateNotification",
-        "budgets:UpdateSubscriber"
+        "budgets:ModifyBudget",
+        "budgets:ViewBudget",
+        "aws-portal:ModifyBilling",
+        "aws-portal:ViewBilling"
       ],
       "Resource": "*"
     }

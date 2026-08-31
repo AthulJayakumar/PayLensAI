@@ -165,7 +165,7 @@
         "ecr:TagResource",
         "ecr:UntagResource"
       ],
-      "Resource": "arn:aws:ecr:eu-north-1:169133351222:repository/paylens-pilot-*"
+      "Resource": "arn:aws:ecr:eu-north-1:139438595256:repository/paylens-pilot-*"
     },
     {
       "Sid": "PayLensIamRolesAndPolicies",
@@ -194,8 +194,8 @@
         "iam:UpdateAssumeRolePolicy"
       ],
       "Resource": [
-        "arn:aws:iam::169133351222:role/PayLens-pilot-*",
-        "arn:aws:iam::169133351222:policy/PayLens-pilot-*"
+        "arn:aws:iam::139438595256:role/PayLens-pilot-*",
+        "arn:aws:iam::139438595256:policy/PayLens-pilot-*"
       ]
     }
   ]

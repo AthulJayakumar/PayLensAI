@@ -3,18 +3,18 @@
 Status date: 2026-08-31. Region: `eu-north-1` (Stockholm). The stack supports
 `dev` and `pilot`; use `pilot` for the merchant-facing environment.
 
-Deployment status: **BLOCKED**. The latest local AWS check returns
-`InvalidClientTokenId`; an administrator-approved short-lived session must be
-established first. The earlier identity
-`arn:aws:iam::169133351222:user/Athul` also lacked
-`cloudformation:DescribeStacks` on `CDKToolkit`. Grant or assume a reviewed CDK
-deployment role with CloudFormation and bootstrap permissions, then follow the
-deployment procedure below. No Sprint 5 AWS resources were created by these
-checks.
+Deployment status: **AUTHORIZED FOR PILOT DEPLOYMENT**. Browser-based AWS CLI authentication is
+verified for the non-root test administrator
+`arn:aws:iam::139438595256:user/paylens-admin`. The policy examples and CDK
+context target test account `139438595256`; AWS policy validation passes, both
+regions are bootstrapped at version `32`, and the GitHub OIDC deployment role
+is configured. The operator supplied the budget-alert email and explicitly
+authorized pilot deployment on 2026-09-01. No Sprint 5 application resources
+had been created before this authorized deployment run.
 
 GitHub CI is green and the protected `pilot` environment is restricted to
-`main` with reviewer approval. Its origin-verification secret is configured;
-the AWS deployment role ARN and budget-alert email remain outstanding.
+`main` with reviewer approval. Its origin-verification, AWS deployment-role,
+and budget-alert email secrets are configured.
 
 ## Decision
 

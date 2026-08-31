@@ -2,20 +2,19 @@
 
 from __future__ import annotations
 
-import os
 from logging.config import fileConfig
 
 from alembic import context
 from dotenv import load_dotenv
 from sqlalchemy import engine_from_config, pool
 
-from app.persistence.database import Base
+from app.persistence.database import Base, database_url_from_environment
 
 load_dotenv()
 config = context.config
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
-config.set_main_option("sqlalchemy.url", os.environ.get("DATABASE_URL", config.get_main_option("sqlalchemy.url")))
+config.set_main_option("sqlalchemy.url", database_url_from_environment() or config.get_main_option("sqlalchemy.url"))
 target_metadata = Base.metadata
 
 

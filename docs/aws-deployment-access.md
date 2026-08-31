@@ -154,6 +154,15 @@ separate execution role.
 
 ## Current gate result
 
+GitHub readiness completed on 2026-08-31:
+
+- CI run `33409578692` passed backend/PostgreSQL, frontend, and infrastructure;
+- `main` requires those three checks, linear history, and blocks force pushes/deletion;
+- the `pilot` environment accepts only `main` and requires reviewer approval;
+- `ORIGIN_VERIFY_HEADER` is stored as an environment secret;
+- `AWS_DEPLOY_ROLE_ARN` and `BUDGET_ALERT_EMAIL` remain unset pending AWS role
+  creation and operator input.
+
 The 2026-08-31 check found that the locally configured AWS security token is
 invalid (`InvalidClientTokenId`). Re-authenticate using an administrator-approved
 short-lived session before repeating any AWS preflight.

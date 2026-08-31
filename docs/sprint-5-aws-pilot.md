@@ -12,6 +12,10 @@ deployment role with CloudFormation and bootstrap permissions, then follow the
 deployment procedure below. No Sprint 5 AWS resources were created by these
 checks.
 
+GitHub CI is green and the protected `pilot` environment is restricted to
+`main` with reviewer approval. Its origin-verification secret is configured;
+the AWS deployment role ARN and budget-alert email remain outstanding.
+
 ## Decision
 
 PayLens uses ECS Fargate for the FastAPI API, one SQS worker service, and the

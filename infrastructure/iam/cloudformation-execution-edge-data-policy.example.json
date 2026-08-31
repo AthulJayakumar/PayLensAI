@@ -101,6 +101,12 @@
       ]
     },
     {
+      "Sid": "ReadPilotDatabaseSecretForRds",
+      "Effect": "Allow",
+      "Action": "secretsmanager:GetSecretValue",
+      "Resource": "arn:aws:secretsmanager:eu-north-1:139438595256:secret:paylens-pilot/database-*"
+    },
+    {
       "Sid": "PilotBudgetLifecycle",
       "Effect": "Allow",
       "Action": [

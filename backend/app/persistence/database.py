@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import os
 from datetime import datetime, timezone
+from urllib.parse import quote_plus
 
 from sqlalchemy import (
     Boolean,
@@ -219,3 +221,23 @@ class AuditEventRow(Base):
 def create_engine_from_url(database_url: str):
     """Create the shared SQLAlchemy engine with stale-connection detection."""
     return create_engine(database_url, pool_pre_ping=True)
+
+
+def database_url_from_environment() -> str | None:
+    """Build the database URL used by API, worker, migration, and admin commands.
+
+    Local development may provide one complete ``DATABASE_URL``. ECS injects
+    the individual host, username, and password values from RDS/Secrets Manager;
+    deployed connections always require TLS.
+    """
+
+    if os.environ.get("DATABASE_URL"):
+        return os.environ["DATABASE_URL"]
+    if os.environ.get("DB_HOST"):
+        return (
+            f"postgresql+psycopg://{quote_plus(os.environ['DB_USERNAME'])}:"
+            f"{quote_plus(os.environ['DB_PASSWORD'])}@{os.environ['DB_HOST']}:"
+            f"{os.environ.get('DB_PORT', '5432')}/{os.environ.get('DB_NAME', 'paylens')}"
+            "?sslmode=require"
+        )
+    return None

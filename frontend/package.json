@@ -26,7 +26,6 @@
     "@eslint/js": "9.39.4",
     "@next/eslint-plugin-next": "16.2.6",
     "@openai/sites-vite-plugin": "0.1.0",
-    "@rolldown/binding-win32-x64-msvc": "1.2.5",
     "@testing-library/jest-dom": "6.9.1",
     "@testing-library/react": "16.3.0",
     "@testing-library/user-event": "14.6.1",
@@ -47,7 +46,8 @@
     "wrangler": "4.125.0"
   },
   "optionalDependencies": {
-    "@rolldown/binding-linux-x64-gnu": "1.2.5"
+    "@rolldown/binding-linux-x64-gnu": "1.2.5",
+    "@rolldown/binding-win32-x64-msvc": "1.2.5"
   },
   "overrides": {
     "esbuild": "0.28.2"

@@ -5,7 +5,6 @@ from __future__ import annotations
 import os
 import secrets
 import logging
-from urllib.parse import quote_plus
 
 from cryptography.fernet import Fernet
 from dotenv import load_dotenv
@@ -22,7 +21,7 @@ from app.api.middleware import SecurityObservabilityMiddleware
 from app.api.services.analysis import AnalysisService, DEFAULT_MAX_UPLOAD_BYTES
 from app.api.services.providers import ProviderService
 from app.persistence.analysis_repository import PostgreSQLAnalysisRepository
-from app.persistence.database import create_engine_from_url
+from app.persistence.database import create_engine_from_url, database_url_from_environment
 from app.persistence.provider_repository import PostgreSQLRawProviderDataStore, SQLProviderRepository
 from app.persistence.pilot_repository import InMemoryPilotRepository, SQLPilotRepository
 from app.providers.s3_storage import S3RawProviderDataStore
@@ -33,17 +32,6 @@ from app.providers.stripe.connector import StripeConnector
 
 
 load_dotenv()
-
-
-def _database_url() -> str | None:
-    """Build a SQLAlchemy URL for local or Secrets Manager-injected settings."""
-    if os.environ.get("DATABASE_URL"):
-        return os.environ["DATABASE_URL"]
-    if os.environ.get("DB_HOST"):
-        return (f"postgresql+psycopg://{quote_plus(os.environ['DB_USERNAME'])}:{quote_plus(os.environ['DB_PASSWORD'])}"
-                f"@{os.environ['DB_HOST']}:{os.environ.get('DB_PORT', '5432')}/{os.environ.get('DB_NAME', 'paylens')}"
-                "?sslmode=require")
-    return None
 
 
 def create_app(
@@ -77,7 +65,7 @@ def create_app(
         allow_headers=["Authorization", "Content-Type", "X-PayLens-Dev-Key", "Stripe-Signature", "X-Request-ID"],
     )
     # Persistence is optional locally but configured through injected secrets on ECS.
-    database_url = _database_url()
+    database_url = database_url_from_environment()
     engine = create_engine_from_url(database_url) if database_url else None
     app.state.database_engine = engine
     if engine is not None:

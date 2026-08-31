@@ -1,14 +1,16 @@
 # Sprint 5 — AWS pilot architecture and runbook
 
-Status date: 2026-08-23. Region: `eu-north-1` (Stockholm). The stack supports
+Status date: 2026-08-31. Region: `eu-north-1` (Stockholm). The stack supports
 `dev` and `pilot`; use `pilot` for the merchant-facing environment.
 
-Deployment status: **BLOCKED**. AWS identity
-`arn:aws:iam::169133351222:user/Athul` was available, but CDK bootstrap stopped
-before creating resources because it lacks
+Deployment status: **BLOCKED**. The latest local AWS check returns
+`InvalidClientTokenId`; an administrator-approved short-lived session must be
+established first. The earlier identity
+`arn:aws:iam::169133351222:user/Athul` also lacked
 `cloudformation:DescribeStacks` on `CDKToolkit`. Grant or assume a reviewed CDK
 deployment role with CloudFormation and bootstrap permissions, then follow the
-deployment procedure below. No Sprint 5 AWS resources were created by this run.
+deployment procedure below. No Sprint 5 AWS resources were created by these
+checks.
 
 ## Decision
 
@@ -134,8 +136,24 @@ bash ..\scripts\smoke-aws.sh pilot
 ```
 
 Create the first Cognito user with `aws cognito-idp admin-create-user`, obtain
-its `sub` with `admin-get-user`, then run `scripts/provision-pilot-user.py` as a
-one-off task with `OWNER`. Do not expose RDS publicly to run the script.
+its `sub` with `admin-get-user`, then run the packaged command below as a
+one-off API task with `OWNER`:
+
+```text
+python -m app.admin.provision_user --subject <cognito-sub> --email <email> \
+  --merchant-id <merchant-id> --merchant-name <merchant-name> --role OWNER
+```
+
+The command reads the same secret-injected database environment as the API.
+Do not expose RDS or pass its password on a command line.
+
+The operational wrapper resolves the deployed private network and task
+definition from CloudFormation outputs:
+
+```powershell
+bash ..\scripts\provision-pilot-user.sh pilot <cognito-sub> <email> `
+  <merchant-id> "<merchant-name>" OWNER
+```
 
 The GitHub workflow uses reviewed `workflow_dispatch`, OIDC (no AWS access-key
 secret), immutable commit tags, an explicit migration task, service stability

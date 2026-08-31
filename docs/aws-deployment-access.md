@@ -1,11 +1,18 @@
 # AWS deployment access for the PayLens pilot
 
-Status date: 2026-08-23. Account: `169133351222`. Primary region:
+Status date: 2026-08-31. Account: `169133351222`. Primary region:
 `eu-north-1`; the AWS Budgets stack is in `us-east-1`.
 
-The repository has no Git remote configured. Replace
-`REPLACE_GITHUB_OWNER/REPLACE_GITHUB_REPOSITORY` in the example trust policy
-before creating a role. Do not weaken the subject to `repo:*`.
+The repository is published as `AthulJayakumar/PayLensAI`. Because it was
+created after GitHub introduced immutable OIDC subject claims, the committed
+trust policy uses owner ID `84382040` and repository ID `1344045749`:
+
+```text
+repo:AthulJayakumar@84382040/PayLensAI@1344045749:environment:pilot
+```
+
+Re-check these IDs before creating the role if the repository is transferred.
+Do not weaken the subject to `repo:*`.
 
 ## Evidence and required services
 
@@ -115,8 +122,8 @@ Create the GitHub OIDC provider for
 `infrastructure/iam/github-oidc-trust-policy.example.json` and attach
 `infrastructure/iam/github-deploy-policy.example.json`.
 
-After replacing the repository placeholder, an administrator can create the
-role and its caller policy without creating an access key:
+After verifying the committed immutable repository identity, an administrator
+can create the role and its caller policy without creating an access key:
 
 ```powershell
 aws iam create-role `
@@ -129,11 +136,11 @@ aws iam put-role-policy `
 ```
 
 The workflow requests only `id-token: write` and `contents: read` and uses the
-protected GitHub environment `pilot`. GitHub's environment subject is
-`repo:OWNER/REPOSITORY:environment:pilot`, so IAM restricts the repository and
-environment. Enforce the branch separately in the GitHub `pilot` environment's
-deployment-branch rules: allow only `main`, require reviewers, and prevent
-self-review.
+protected GitHub environment `pilot`. GitHub's immutable environment subject
+includes the owner ID, repository ID, and environment, so IAM restricts the
+exact repository identity and environment. Enforce the branch separately in
+the GitHub `pilot` environment's deployment-branch rules: allow only `main`,
+require reviewers, and prevent self-review.
 
 Set `AWS_DEPLOY_ROLE_ARN` to the role ARN as a GitHub environment secret. Keep
 `BUDGET_ALERT_EMAIL` and `ORIGIN_VERIFY_HEADER` there as well. Never create or
@@ -146,6 +153,10 @@ and `ecs-tasks.amazonaws.com`. CloudFormation permissions remain in the
 separate execution role.
 
 ## Current gate result
+
+The 2026-08-31 check found that the locally configured AWS security token is
+invalid (`InvalidClientTokenId`). Re-authenticate using an administrator-approved
+short-lived session before repeating any AWS preflight.
 
 The 2026-08-23 preflight confirmed account `169133351222`, user
 `arn:aws:iam::169133351222:user/Athul`, configured region `eu-north-1`, and a

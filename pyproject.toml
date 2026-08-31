@@ -32,6 +32,7 @@ dev = [
 [project.scripts]
 paylens-generate = "app.synthetic.cli:main"
 paylens-analyse = "app.analytics.cli:main"
+paylens-provision-user = "app.admin.provision_user:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["backend/app"]

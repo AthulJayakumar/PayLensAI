@@ -1,0 +1,58 @@
+{
+  "name": "paylens-ai-athul-sandbox",
+  "version": "0.0.2",
+  "description": "PayLens AI",
+  "private": true,
+  "license": "~~proprietary~~",
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "packageManager": "pnpm@10.34.5",
+  "scripts": {
+    "build": "pnpm -r --if-present build",
+    "lint": "pnpm lint:types && pnpm lint:eslint && pnpm lint:format",
+    "lint:types": "pnpm -r --if-present lint:types",
+    "lint:eslint": "eslint . --ignore-pattern 'extensions/**' && pnpm -r --filter './extensions/*' --if-present lint:eslint && pnpm -r --filter './custom-objects' --if-present lint:eslint",
+    "lint:format": "prettier --check .",
+    "fix:lint": "eslint --fix . --ignore-pattern 'extensions/**' && pnpm -r --filter './extensions/*' --if-present fix:lint",
+    "fix:format": "prettier --write .",
+    "test": "tsx tools/test.mts",
+    "test:watch": "vitest watch",
+    "check": "pnpm build && pnpm lint && pnpm test",
+    "prepare": "husky",
+    "preimage": "pnpm install --lockfile-only && pnpm build && pnpm lint:types && pnpm lint:eslint && pnpm test",
+    "image": "node -e \"require('node:fs').rmSync('.build', { recursive: true, force: true })\" && create-upload-image .build",
+    "postimage": "node -e \"require('node:fs').copyFileSync('pnpm-lock.yaml', '.build/pnpm-lock.yaml')\"",
+    "stripe:regen": "gen-workspace --package-dir ."
+  },
+  "lint-staged": {
+    "*.{ts,mts,mjs,js}": [
+      "eslint --fix",
+      "prettier --write"
+    ],
+    "*.{json,md,yaml}": "prettier --write"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.0.0",
+    "@stripe/extensibility-dev-tools": "^1.7.3",
+    "@stripe/extensibility-eslint-plugin": "^1.4.1",
+    "@stripe/extensibility-language-server": "^1.0.1",
+    "@stripe/extensibility-test-helpers": "^1.2.0",
+    "@types/node": "^20.19.0",
+    "chokidar-cli": "^3.0.0",
+    "concurrently": "^9.2.1",
+    "eslint": "^9.0.0",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-workspaces": "^0.12.1",
+    "globals": "17.4.0",
+    "husky": "^9.1.7",
+    "jiti": "^2.6.1",
+    "lint-staged": "^16.2.7",
+    "prettier": "^3.8.1",
+    "ts-node": "^10.9.2",
+    "tsx": "^4.21.0",
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.54.0",
+    "vitest": "^3.0.0"
+  }
+}

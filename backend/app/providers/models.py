@@ -46,6 +46,8 @@ class ProviderConnection(BaseModel):
 
 
 class ProviderCredentials(BaseModel):
+    """Decrypted provider tokens held only while making an authorised call."""
+
     model_config = ConfigDict(extra="forbid")
 
     access_token: str
@@ -54,12 +56,16 @@ class ProviderCredentials(BaseModel):
 
 
 class OAuthTokenResponse(ProviderCredentials):
+    """Validated token and account details returned by an OAuth exchange."""
+
     provider_account_id: str
     scope: str | None = None
     livemode: bool = False
 
 
 class SyncJob(BaseModel):
+    """Progress and checkpoint state for a historical provider import."""
+
     model_config = ConfigDict(extra="forbid")
 
     id: str
@@ -91,6 +97,8 @@ class RawProviderObject(BaseModel):
 
 
 class ProviderPage(BaseModel):
+    """One provider API page plus its retry-safe continuation cursor."""
+
     model_config = ConfigDict(extra="forbid")
 
     objects: list[dict]
@@ -110,12 +118,16 @@ class ReconciliationResult(BaseModel):
 
 
 class JobType(StrEnum):
+    """Background workload families routed to separate durable queues."""
+
     PROVIDER_SYNC = "PROVIDER_SYNC"
     ANALYSIS = "ANALYSIS"
     WEBHOOK = "WEBHOOK"
 
 
 class JobStatus(StrEnum):
+    """Persisted lifecycle states for asynchronous work."""
+
     QUEUED = "QUEUED"
     RUNNING = "RUNNING"
     COMPLETED = "COMPLETED"

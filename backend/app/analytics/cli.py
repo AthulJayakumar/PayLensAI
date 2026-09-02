@@ -17,6 +17,8 @@ def _aware_datetime(value: str) -> datetime:
 
 
 def build_parser() -> argparse.ArgumentParser:
+    """Describe the supported command-line arguments for CSV analysis."""
+
     parser = argparse.ArgumentParser(description="Analyse canonical PayLens transaction CSV data.")
     parser.add_argument("--input", type=Path, required=True, help="Canonical PayLens CSV path.")
     parser.add_argument(
@@ -35,6 +37,8 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main() -> None:
+    """Run one CSV analysis and print its structured JSON result."""
+
     args = build_parser().parse_args()
     result = analyse_csv(
         args.input, current_start=args.current_start, current_end=args.current_end
@@ -52,4 +56,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-

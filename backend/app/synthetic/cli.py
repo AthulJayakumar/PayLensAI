@@ -14,6 +14,8 @@ from app.synthetic.generator import generate_transactions
 
 
 def build_parser() -> argparse.ArgumentParser:
+    """Describe the supported synthetic-data command-line arguments."""
+
     parser = argparse.ArgumentParser(description="Generate deterministic PayLens CSV data.")
     parser.add_argument("--count", type=int, default=100_000, help="Number of rows to generate.")
     parser.add_argument("--seed", type=int, default=20_260_822, help="Deterministic random seed.")
@@ -39,6 +41,8 @@ def _load_anomalies(path: Path) -> list[AnomalyRule]:
 
 
 def main() -> None:
+    """Generate a deterministic canonical CSV from command-line options."""
+
     args = build_parser().parse_args()
     if args.no_anomalies:
         anomalies: list[AnomalyRule] = []
@@ -54,4 +58,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-

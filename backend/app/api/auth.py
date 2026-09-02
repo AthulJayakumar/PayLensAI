@@ -19,6 +19,8 @@ from app.api.errors import APIError
 
 
 class MerchantRole(StrEnum):
+    """Permission level attached to a user's active merchant membership."""
+
     OWNER = "OWNER"
     ADMIN = "ADMIN"
     ANALYST = "ANALYST"
@@ -26,6 +28,8 @@ class MerchantRole(StrEnum):
 
 
 class AuthenticatedMerchant(BaseModel):
+    """Trusted request identity resolved by a server-side authenticator."""
+
     model_config = ConfigDict(extra="forbid")
 
     merchant_id: str
@@ -35,6 +39,8 @@ class AuthenticatedMerchant(BaseModel):
 
 
 class Authenticator(ABC):
+    """Boundary for converting request credentials into merchant identity."""
+
     @abstractmethod
     def authenticate(self, request: Request) -> AuthenticatedMerchant:
         """Resolve a merchant from trusted authentication material."""
@@ -86,6 +92,8 @@ class StaticAuthenticator(Authenticator):
 
 
 class MembershipLookup(Protocol):
+    """Minimum membership lookup required by Cognito authentication."""
+
     def membership_for_subject(self, subject: str) -> tuple[str, str, MerchantRole] | None: ...
 
 

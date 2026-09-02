@@ -1,0 +1,15 @@
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "plugins": [
+      {
+        "name": "@stripe/extensibility-language-server/plugin"
+      }
+    ],
+    "preserveWatchOutput": true,
+    "types": ["vitest/globals", "node"]
+  },
+  "include": ["**/*.ts"],
+  "exclude": ["**/node_modules", "**/dist"]
+}

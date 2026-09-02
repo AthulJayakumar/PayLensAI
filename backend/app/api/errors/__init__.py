@@ -10,6 +10,8 @@ from fastapi.responses import JSONResponse
 
 
 class APIError(Exception):
+    """Expected API failure with a safe status, code, message, and details."""
+
     def __init__(
         self,
         *,
@@ -26,10 +28,14 @@ class APIError(Exception):
 
 
 def error_payload(code: str, message: str, details: list[Any] | None = None) -> dict:
+    """Build the consistent error envelope returned by every API route."""
+
     return {"error": {"code": code, "message": message, "details": details or []}}
 
 
 def install_error_handlers(app: FastAPI) -> None:
+    """Register safe handlers for business and request-validation errors."""
+
     @app.exception_handler(APIError)
     async def api_error_handler(request: Request, error: APIError) -> JSONResponse:
         return JSONResponse(
@@ -53,4 +59,3 @@ def install_error_handlers(app: FastAPI) -> None:
             status_code=422,
             content=error_payload("REQUEST_VALIDATION_ERROR", "The request is invalid.", details),
         )
-

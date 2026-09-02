@@ -9,6 +9,8 @@ from app.providers.models import RawProviderObject
 
 
 class RawProviderDataStore(ABC):
+    """Tenant-aware storage boundary for original provider evidence."""
+
     @abstractmethod
     def put(self, item: RawProviderObject) -> str:
         """Durably store the original provider object and return its reference."""
@@ -19,6 +21,8 @@ class RawProviderDataStore(ABC):
 
 
 class InMemoryRawProviderDataStore(RawProviderDataStore):
+    """Thread-safe raw-object store used by local runs and unit tests."""
+
     def __init__(self) -> None:
         self._items: dict[str, RawProviderObject] = {}
         self._lock = RLock()

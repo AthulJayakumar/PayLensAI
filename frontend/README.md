@@ -1,31 +1,17 @@
 # PayLens frontend
 
-Local TypeScript product interface for the PayLens deterministic analytics API.
+This directory contains the merchant-facing React interface. It deliberately
+does not calculate payment KPIs or decide insights; it asks the backend for
+typed results and presents them.
 
-## Requirements
+- `app/` defines routes such as upload, login, analysis, insight detail, and
+  provider management.
+- `components/` contains reusable user-interface sections.
+- `lib/api.ts` is the single typed HTTP client and authentication boundary.
+- `lib/format.ts` formats already-calculated values for people to read.
+- `tests/` verifies important states and user flows without calling live AWS or
+  Stripe services.
 
-- Node.js 22.13 or newer
-- The PayLens FastAPI backend running at `http://localhost:8000`
-- `NEXT_PUBLIC_PAYLENS_DEV_API_KEY` matching the backend local development key
-
-## Run
-
-```powershell
-npm install
-npm run dev
-```
-
-Open `http://localhost:3000`.
-
-The `/providers` route manages the local Stripe connection and sync. Set
-`NEXT_PUBLIC_API_URL` only when the backend uses another local origin.
-
-## Verify
-
-```powershell
-npm test
-npm run build
-```
-
-The frontend formats API-provided values for display. It does not calculate
-financial KPIs, insight severity, or affected values.
+Run `npm test`, `npm run lint`, and `npm run build` before publishing a change.
+The `.openai/hosting.json` and Vinext files are retained for compatible preview
+and hosting tooling; the verified PayLens pilot itself is deployed through AWS.

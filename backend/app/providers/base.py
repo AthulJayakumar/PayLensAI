@@ -9,6 +9,8 @@ from app.providers.models import OAuthTokenResponse, ProviderPage, Reconciliatio
 
 
 class PaymentProviderConnector(ABC):
+    """Provider API boundary used by orchestration without provider-specific code."""
+
     provider: str
 
     @abstractmethod

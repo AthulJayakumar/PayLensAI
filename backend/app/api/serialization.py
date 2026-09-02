@@ -9,14 +9,20 @@ from app.insights.models import Insight
 
 
 def decimal_text(value: Decimal | None) -> str | None:
+    """Serialize an exact decimal as text so JSON does not lose precision."""
+
     return None if value is None else format(value, "f")
 
 
 def money_map(values: dict[str, Decimal]) -> dict[str, str]:
+    """Serialize a currency-to-amount mapping in stable currency order."""
+
     return {currency: decimal_text(value) for currency, value in sorted(values.items())}
 
 
 def metrics_payload(metrics: KPIMetrics) -> dict:
+    """Project internal KPI names into the public, currency-safe API shape."""
+
     currencies = sorted(metrics.attempted_payment_value)
     return {
         "overall": {
@@ -56,6 +62,8 @@ def metrics_payload(metrics: KPIMetrics) -> dict:
 
 
 def insight_payload(insight: Insight) -> dict:
+    """Project one structured insight into its stable public API shape."""
+
     return {
         "insight_id": insight.id,
         "type": insight.type.value,
@@ -78,4 +86,3 @@ def insight_payload(insight: Insight) -> dict:
             for key, value in insight.evidence.items()
         },
     }
-

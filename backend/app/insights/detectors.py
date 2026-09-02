@@ -34,6 +34,8 @@ def _failure_rate_threshold(context: DetectionContext) -> Decimal:
 
 
 class FailureSpikeDetector(Detector):
+    """Detect a meaningful current failure-rate increase over its baseline."""
+
     insight_type = InsightType.FAILURE_SPIKE
 
     def detect(self, contexts: Sequence[DetectionContext], overall: DetectionContext) -> list[Insight]:
@@ -75,6 +77,8 @@ class FailureSpikeDetector(Detector):
 
 
 class HighFailureSegmentDetector(Detector):
+    """Detect a segment whose current failure rate is high in absolute terms."""
+
     insight_type = InsightType.HIGH_FAILURE_SEGMENT
 
     def detect(self, contexts: Sequence[DetectionContext], overall: DetectionContext) -> list[Insight]:
@@ -103,6 +107,8 @@ class HighFailureSegmentDetector(Detector):
 
 
 class HighPaymentCostDetector(Detector):
+    """Detect a segment whose effective payment cost exceeds the fixed limit."""
+
     insight_type = InsightType.HIGH_PAYMENT_COST
 
     def detect(self, contexts: Sequence[DetectionContext], overall: DetectionContext) -> list[Insight]:
@@ -132,6 +138,8 @@ class HighPaymentCostDetector(Detector):
 
 
 class ProviderCostDifferenceDetector(Detector):
+    """Detect one provider costing materially more than comparable providers."""
+
     insight_type = InsightType.PROVIDER_COST_DIFFERENCE
 
     def detect(self, contexts: Sequence[DetectionContext], overall: DetectionContext) -> list[Insight]:
@@ -186,6 +194,8 @@ class ProviderCostDifferenceDetector(Detector):
 
 
 class RefundSpikeDetector(Detector):
+    """Detect a meaningful current refund-rate increase over its baseline."""
+
     insight_type = InsightType.REFUND_SPIKE
 
     def detect(self, contexts: Sequence[DetectionContext], overall: DetectionContext) -> list[Insight]:
@@ -223,6 +233,8 @@ class RefundSpikeDetector(Detector):
 
 
 class DisputeSpikeDetector(Detector):
+    """Detect a meaningful current dispute-rate increase over its baseline."""
+
     insight_type = InsightType.DISPUTE_SPIKE
 
     def detect(self, contexts: Sequence[DetectionContext], overall: DetectionContext) -> list[Insight]:
@@ -260,6 +272,8 @@ class DisputeSpikeDetector(Detector):
 
 
 class PaymentMethodUnderperformanceDetector(Detector):
+    """Detect a payment method failing more often than the overall population."""
+
     insight_type = InsightType.PAYMENT_METHOD_UNDERPERFORMANCE
 
     def detect(self, contexts: Sequence[DetectionContext], overall: DetectionContext) -> list[Insight]:

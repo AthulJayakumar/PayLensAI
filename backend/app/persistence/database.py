@@ -26,11 +26,13 @@ JSON_DOCUMENT = JSON().with_variant(JSONB(), "postgresql")
 
 
 def utcnow() -> datetime:
+    """Return a timezone-aware timestamp suitable for persisted audit history."""
+
     return datetime.now(timezone.utc)
 
 
 class Base(DeclarativeBase):
-    pass
+    """Shared SQLAlchemy base from which every PayLens table is declared."""
 
 
 class MerchantRow(Base):
@@ -61,6 +63,8 @@ class AnalysisRow(Base):
 
 
 class AnalysisInsightRow(Base):
+    """Structured insight document linked to its analysis and merchant."""
+
     __tablename__ = "analysis_insights"
 
     insight_id: Mapped[str] = mapped_column(String(100), primary_key=True)
@@ -111,6 +115,8 @@ class ProviderConnectionRow(Base):
 
 
 class SyncJobRow(Base):
+    """Checkpointed progress for a historical provider synchronization."""
+
     __tablename__ = "sync_jobs"
 
     id: Mapped[str] = mapped_column(String(100), primary_key=True)
@@ -127,6 +133,8 @@ class SyncJobRow(Base):
 
 
 class RawProviderObjectRow(Base):
+    """Original provider evidence stored once per merchant/provider object."""
+
     __tablename__ = "raw_provider_objects"
     __table_args__ = (
         UniqueConstraint("merchant_id", "provider", "provider_object_type", "provider_object_id", name="uq_raw_provider_object"),
@@ -160,6 +168,8 @@ class WebhookEventRow(Base):
 
 
 class OAuthStateRow(Base):
+    """Expiring, one-use OAuth nonce ledger that prevents callback forgery."""
+
     __tablename__ = "oauth_states"
 
     nonce_hash: Mapped[str] = mapped_column(String(64), primary_key=True)
@@ -170,6 +180,8 @@ class OAuthStateRow(Base):
 
 
 class UserRow(Base):
+    """Minimal user identity keyed by the trusted Cognito subject."""
+
     __tablename__ = "users"
 
     subject: Mapped[str] = mapped_column(String(128), primary_key=True)

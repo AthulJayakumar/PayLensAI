@@ -12,6 +12,8 @@ from app.insights.models import Insight, InsightType
 
 
 class Explanation(BaseModel):
+    """Three-part, merchant-readable description of one insight."""
+
     model_config = ConfigDict(extra="forbid")
 
     what_happened: str
@@ -20,6 +22,8 @@ class Explanation(BaseModel):
 
 
 class ExplanationProvider(ABC):
+    """Boundary for explaining evidence without changing calculated facts."""
+
     @abstractmethod
     def explain(self, insight: Insight) -> Explanation:
         """Convert one calculated finding into merchant-safe language."""

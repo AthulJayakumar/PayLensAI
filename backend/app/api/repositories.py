@@ -13,6 +13,8 @@ from app.models import PayLensTransaction
 
 
 class AnalysisPerformance(BaseModel):
+    """Seconds measured across upload and analytics stages."""
+
     model_config = ConfigDict(extra="forbid")
 
     upload_seconds: float
@@ -23,6 +25,8 @@ class AnalysisPerformance(BaseModel):
 
 
 class AnalysisRecord(BaseModel):
+    """Merchant-owned input, result, and metadata stored for one analysis."""
+
     model_config = ConfigDict(extra="forbid", arbitrary_types_allowed=True)
 
     analysis_id: str
@@ -40,6 +44,8 @@ class AnalysisRecord(BaseModel):
 
 
 class AnalysisRepository(ABC):
+    """Storage boundary shared by in-memory and PostgreSQL implementations."""
+
     @abstractmethod
     def save(self, analysis: AnalysisRecord) -> None:
         """Persist or replace an analysis record."""

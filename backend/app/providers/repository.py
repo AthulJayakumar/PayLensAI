@@ -11,6 +11,8 @@ from app.providers.models import ProviderConnection, SyncJob
 
 
 class ProviderRepository(ABC):
+    """Persistence operations required by provider connection workflows."""
+
     @abstractmethod
     def save_connection(self, connection: ProviderConnection) -> None: ...
 
@@ -64,6 +66,8 @@ class ProviderRepository(ABC):
 
 
 class InMemoryProviderRepository(ProviderRepository):
+    """Thread-safe provider repository used by local runs and tests."""
+
     def __init__(self) -> None:
         self.connections: dict[tuple[str, str], ProviderConnection] = {}
         self.credentials: dict[str, tuple[str, str | None]] = {}

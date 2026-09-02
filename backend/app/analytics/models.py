@@ -13,6 +13,8 @@ RateByCurrency = dict[str, Decimal | None]
 
 
 class SegmentDimension(StrEnum):
+    """Fields by which a merchant can split payment performance."""
+
     PROVIDER = "provider"
     PAYMENT_METHOD = "payment_method"
     CARD_NETWORK = "card_network"
@@ -23,6 +25,8 @@ class SegmentDimension(StrEnum):
 
 
 class TimeGranularity(StrEnum):
+    """Calendar bucket sizes supported by time-period segmentation."""
+
     DAY = "day"
     WEEK = "week"
     MONTH = "month"
@@ -58,6 +62,8 @@ class KPIMetrics(BaseModel):
 
 
 class SegmentMetrics(BaseModel):
+    """The identifying segment values and KPIs calculated for that group."""
+
     model_config = ConfigDict(extra="forbid")
 
     segment: dict[str, str]
@@ -79,4 +85,3 @@ class BaselineComparison(BaseModel):
     failed_transaction_count: int = Field(ge=0)
     baseline_transaction_count: int = Field(ge=0)
     baseline_failed_transaction_count: int = Field(ge=0)
-

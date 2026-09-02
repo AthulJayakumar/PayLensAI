@@ -1,3 +1,5 @@
+/** Browser-like unit-test environment for merchant-facing React components. */
+
 import { defineConfig } from "vitest/config";
 import react from "@vitejs/plugin-react";
 
@@ -9,4 +11,3 @@ export default defineConfig({
     include: ["tests/**/*.test.tsx"],
   },
 });
-

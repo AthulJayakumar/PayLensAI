@@ -16,6 +16,8 @@ from app.insights.models import Insight
 
 
 class ProcessingTimings(BaseModel):
+    """Measured seconds spent in each analytics stage."""
+
     model_config = ConfigDict(extra="forbid")
 
     data_loading_seconds: float = Field(ge=0)
@@ -25,6 +27,8 @@ class ProcessingTimings(BaseModel):
 
 
 class AnalysisResult(BaseModel):
+    """Complete deterministic output returned by one analytics run."""
+
     model_config = ConfigDict(extra="forbid")
 
     transaction_count: int = Field(ge=0)

@@ -20,6 +20,8 @@ router = APIRouter(prefix="/providers", tags=["providers"])
 
 
 class SyncRequest(BaseModel):
+    """Optional lower time boundary requested for a historical Stripe import."""
+
     model_config = ConfigDict(extra="forbid")
     resume_job_id: str | None = None
 

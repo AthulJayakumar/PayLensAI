@@ -27,6 +27,8 @@ def segment_value(
     dimension: SegmentDimension,
     time_granularity: TimeGranularity,
 ) -> str:
+    """Read and consistently format one grouping value from a transaction."""
+
     if dimension == SegmentDimension.TIME_PERIOD:
         return _time_key(transaction, time_granularity)
     value = getattr(transaction, dimension.value)
@@ -58,4 +60,3 @@ def segment_metrics(
         segment = {dimension.value: value for dimension, value in zip(dimensions, key, strict=True)}
         results.append(SegmentMetrics(segment=segment, metrics=calculate_kpis(groups[key])))
     return results
-

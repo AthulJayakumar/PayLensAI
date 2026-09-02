@@ -1,3 +1,5 @@
+/** Vinext build plus optional local bindings used by the Sites toolchain. */
+
 import { sites } from "@openai/sites-vite-plugin";
 import vinext from "vinext";
 import { defineConfig } from "vite";

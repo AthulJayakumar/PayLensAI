@@ -15,6 +15,8 @@ from app.insights.severity import classify_severity, detection_confidence
 
 
 class Detector(ABC):
+    """Contract implemented by every deterministic insight rule."""
+
     insight_type: InsightType
 
     @abstractmethod
@@ -25,12 +27,16 @@ class Detector(ABC):
 
 
 def relative_change(current: Decimal, baseline: Decimal) -> Decimal | None:
+    """Return proportional change, or no result when baseline is zero."""
+
     if baseline == 0:
         return None
     return rate(current - baseline, baseline)
 
 
 def currency_value(values: MoneyByCurrency, currency: str) -> MoneyByCurrency:
+    """Return one requested currency without combining incompatible money."""
+
     return {currency: values.get(currency, Decimal("0"))}
 
 
@@ -50,6 +56,8 @@ def build_insight(
     affected_payment_cost: MoneyByCurrency | None = None,
     evidence: dict[str, str | int | Decimal] | None = None,
 ) -> Insight:
+    """Create one validated insight with consistent severity and confidence."""
+
     change = relative_change(current_value, baseline_value) if baseline_value is not None else None
     absolute = current_value - baseline_value if baseline_value is not None else None
     identity = json.dumps(
@@ -80,4 +88,3 @@ def build_insight(
         confidence=detection_confidence(transaction_count, change),
         evidence=evidence or {},
     )
-

@@ -13,18 +13,26 @@ from app.api.services.providers import ProviderService
 
 
 def get_repository(request: Request) -> AnalysisRepository:
+    """Return the analysis repository selected when the app started."""
+
     return request.app.state.analysis_repository
 
 
 def get_analysis_service(request: Request) -> AnalysisService:
+    """Return the shared analysis use-case service."""
+
     return request.app.state.analysis_service
 
 
 def get_provider_service(request: Request) -> ProviderService:
+    """Return the shared provider orchestration service."""
+
     return request.app.state.provider_service
 
 
 def get_explanation_provider(request: Request) -> ExplanationProvider:
+    """Return the configured deterministic explanation provider."""
+
     return request.app.state.explanation_provider
 
 

@@ -14,12 +14,16 @@ Money = Annotated[Decimal, Field(ge=0, max_digits=20, decimal_places=6)]
 
 
 class PaymentProvider(StrEnum):
+    """Provider names represented by the provider-neutral transaction model."""
+
     STRIPE = "STRIPE"
     PAYPAL = "PAYPAL"
     ADYEN = "ADYEN"
 
 
 class PaymentStatus(StrEnum):
+    """Final or current outcome of a payment attempt."""
+
     SUCCEEDED = "SUCCEEDED"
     FAILED = "FAILED"
     PENDING = "PENDING"
@@ -27,6 +31,8 @@ class PaymentStatus(StrEnum):
 
 
 class PaymentMethod(StrEnum):
+    """Customer payment instrument categories supported by analytics."""
+
     CARD = "CARD"
     PAYPAL = "PAYPAL"
     APPLE_PAY = "APPLE_PAY"
@@ -35,6 +41,8 @@ class PaymentMethod(StrEnum):
 
 
 class CardNetwork(StrEnum):
+    """Normalised card-scheme names used for card segmentation."""
+
     VISA = "VISA"
     MASTERCARD = "MASTERCARD"
     AMEX = "AMEX"
@@ -42,6 +50,8 @@ class CardNetwork(StrEnum):
 
 
 class FundingType(StrEnum):
+    """How a card account is funded when the provider supplies that detail."""
+
     CREDIT = "CREDIT"
     DEBIT = "DEBIT"
     PREPAID = "PREPAID"
@@ -49,6 +59,8 @@ class FundingType(StrEnum):
 
 
 class FailureCategory(StrEnum):
+    """Provider-independent reason family for an unsuccessful attempt."""
+
     ISSUER_DECLINE = "ISSUER_DECLINE"
     AUTHENTICATION = "AUTHENTICATION"
     INSUFFICIENT_FUNDS = "INSUFFICIENT_FUNDS"
@@ -59,6 +71,8 @@ class FailureCategory(StrEnum):
 
 
 class RefundStatus(StrEnum):
+    """Whether none, some, or all of a successful payment was refunded."""
+
     NONE = "NONE"
     PARTIAL = "PARTIAL"
     FULL = "FULL"
@@ -66,6 +80,8 @@ class RefundStatus(StrEnum):
 
 
 class DisputeStatus(StrEnum):
+    """Current lifecycle state of a payment dispute."""
+
     NONE = "NONE"
     OPEN = "OPEN"
     WON = "WON"
@@ -73,6 +89,8 @@ class DisputeStatus(StrEnum):
 
 
 class SourceType(StrEnum):
+    """How the transaction first entered PayLens."""
+
     API = "API"
     WEBHOOK = "WEBHOOK"
     REPORT = "REPORT"
@@ -81,6 +99,8 @@ class SourceType(StrEnum):
 
 
 class DataAvailability(StrEnum):
+    """Whether optional source details were present, absent, or unsupported."""
+
     AVAILABLE = "AVAILABLE"
     NOT_AVAILABLE = "NOT_AVAILABLE"
     NOT_APPLICABLE = "NOT_APPLICABLE"
@@ -195,4 +215,3 @@ class PayLensTransaction(BaseModel):
         if self.settled_at is not None and self.authorised_at is None:
             raise ValueError("settled transactions require an authorisation timestamp")
         return self
-

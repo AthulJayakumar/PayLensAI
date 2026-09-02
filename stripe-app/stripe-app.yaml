@@ -1,0 +1,21 @@
+$schema: https://stripe.com/stripe-app/v2.0.0/schema
+id: paylens-ai-athul-sandbox
+name: PayLens AI
+version: 0.0.2
+icon: ''
+declarations:
+  distribution_type: public
+  stripe_api_access:
+    permissions:
+      - permission: payment_intent_read
+        purpose: Analyse payment attempts, outcomes, amounts, methods, and currencies in PayLens.
+      - permission: charge_read
+        purpose: Analyse successful charges, refunds, and payment performance in PayLens.
+      - permission: dispute_read
+        purpose: Analyse dispute amounts and rates in PayLens.
+      - permission: balance_transaction_source_read
+        purpose: Analyse Stripe processing and provider fees in PayLens.
+  stripe_api_access_type: oauth
+  allowed_redirect_uris:
+    - https://d8hmknablqw3v.cloudfront.net/api/providers/stripe/oauth/callback
+extensions: []

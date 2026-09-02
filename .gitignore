@@ -19,4 +19,5 @@ infrastructure/cdk.out/
 # Generated datasets can be recreated deterministically.
 synthetic-data/*.csv
 synthetic-data/*.analysis.json
+synthetic-data/*-analysis.json
 !synthetic-data/.gitkeep

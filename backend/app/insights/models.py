@@ -11,6 +11,8 @@ from app.analytics.models import KPIMetrics, MoneyByCurrency
 
 
 class InsightType(StrEnum):
+    """Stable identifiers for the anomaly families PayLens can report."""
+
     FAILURE_SPIKE = "FAILURE_SPIKE"
     HIGH_FAILURE_SEGMENT = "HIGH_FAILURE_SEGMENT"
     HIGH_PAYMENT_COST = "HIGH_PAYMENT_COST"
@@ -21,6 +23,8 @@ class InsightType(StrEnum):
 
 
 class Severity(StrEnum):
+    """Deterministic business-priority levels from lowest to highest."""
+
     LOW = "LOW"
     MEDIUM = "MEDIUM"
     HIGH = "HIGH"
@@ -28,6 +32,8 @@ class Severity(StrEnum):
 
 
 class DetectionContext(BaseModel):
+    """Baseline/current populations and metrics supplied to every detector."""
+
     model_config = ConfigDict(extra="forbid")
 
     segment: dict[str, str]
@@ -57,4 +63,3 @@ class Insight(BaseModel):
     affected_transaction_count: int = Field(ge=0)
     confidence: Decimal = Field(ge=0, le=1)
     evidence: dict[str, str | int | Decimal] = Field(default_factory=dict)
-

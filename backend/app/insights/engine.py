@@ -32,6 +32,8 @@ DEFAULT_SEGMENT_COMBINATIONS: tuple[tuple[SegmentDimension, ...], ...] = (
 
 
 class InsightEngine:
+    """Run configured detectors over overall and segmented period comparisons."""
+
     def __init__(
         self,
         detectors: Sequence[Detector] | None = None,

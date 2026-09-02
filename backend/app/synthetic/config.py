@@ -11,6 +11,8 @@ from app.models import CardNetwork, PaymentMethod, PaymentProvider
 
 
 class AnomalyType(StrEnum):
+    """Synthetic problem families that the generator can deliberately inject."""
+
     FAILURE_SPIKE = "FAILURE_SPIKE"
     NETWORK_SPECIFIC_FAILURE = "NETWORK_SPECIFIC_FAILURE"
     COUNTRY_SPECIFIC_FAILURE = "COUNTRY_SPECIFIC_FAILURE"
@@ -20,6 +22,8 @@ class AnomalyType(StrEnum):
 
 
 class AnomalyRule(BaseModel):
+    """Selectors, time window, and strength for one injected anomaly."""
+
     model_config = ConfigDict(extra="forbid")
 
     type: AnomalyType
@@ -77,6 +81,8 @@ class AnomalyRule(BaseModel):
 
 
 class GenerationConfig(BaseModel):
+    """Validated recipe that makes a synthetic dataset reproducible."""
+
     model_config = ConfigDict(extra="forbid")
 
     count: int = Field(default=100_000, gt=0, le=10_000_000)
@@ -140,4 +146,3 @@ def default_anomalies() -> list[AnomalyRule]:
             start_at=datetime(2026, 6, 1, tzinfo=timezone.utc),
         ),
     ]
-

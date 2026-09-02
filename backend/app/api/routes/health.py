@@ -10,7 +10,7 @@ router = APIRouter(tags=["health"])
 @router.get("/health")
 def health() -> dict:
     """Report that the API process is alive without checking dependencies."""
-    return {"status": "ok", "service": "paylens-api", "version": "0.5.0"}
+    return {"status": "ok", "service": "paylens-api", "version": "0.6.0"}
 
 
 @router.get("/health/ready")

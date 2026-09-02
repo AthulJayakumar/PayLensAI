@@ -50,7 +50,7 @@ def api_context(tmp_path_factory):
 def test_health_endpoint() -> None:
     response = api_client().get("/health")
     assert response.status_code == 200
-    assert response.json() == {"status": "ok", "service": "paylens-api", "version": "0.5.0"}
+    assert response.json() == {"status": "ok", "service": "paylens-api", "version": "0.6.0"}
 
 
 def test_valid_upload_creates_retrievable_analysis(api_context) -> None:

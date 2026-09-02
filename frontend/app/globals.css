@@ -226,6 +226,26 @@ tbody tr:last-child td { border: 0; }
 .provider-error strong { color: var(--ink); font-size: 17px; }
 .provider-error p { max-width: 520px; margin: 0; }
 .auth-error-link { display: block; margin-top: 7px; }
+.diagnostics-panel { margin-top: 18px; padding: 28px 30px; border: 1px solid var(--line); border-radius: 18px; color: var(--ink-soft); background: white; box-shadow: var(--shadow); }
+.diagnostics-heading { display: flex; align-items: center; justify-content: space-between; gap: 20px; }
+.diagnostics-heading h2 { margin: 4px 0 0; color: var(--ink); font-size: 23px; }
+.diagnostics-actions { display: flex; align-items: center; gap: 10px; }
+.secondary-button.compact { width: auto; min-height: 38px; padding: 0 14px; cursor: pointer; }
+.pipeline-pill, .job-status { display: inline-flex; padding: 6px 9px; border-radius: 99px; color: #4d607b; background: #edf1f6; font-size: 9px; font-weight: 850; letter-spacing: .06em; text-transform: uppercase; }
+.pipeline-pill.healthy, .job-status.completed { color: var(--green); background: #e7f6f0; }
+.pipeline-pill.processing, .job-status.running, .job-status.queued { color: #2c54b9; background: #eaf0ff; }
+.pipeline-pill.degraded, .job-status.failed { color: var(--red); background: #fff0f3; }
+.diagnostics-grid { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 14px; margin: 24px 0 0; }
+.diagnostics-grid div { padding: 15px; border: 1px solid #edf0f5; border-radius: 11px; background: #fafbfe; }
+.diagnostics-grid dt { font-size: 9px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; }
+.diagnostics-grid dd { margin: 8px 0 0; overflow-wrap: anywhere; color: var(--ink); font-size: 13px; font-weight: 720; }
+.diagnostics-reference, .delivery-note { margin: 14px 0 0; font-size: 11px; line-height: 1.6; }
+.diagnostics-reference code, .diagnostics-table-wrap code { color: var(--ink); font-size: 10px; }
+.delivery-note { display: flex; gap: 22px; padding: 11px 14px; border-radius: 9px; background: #f5f7ff; }
+.diagnostics-panel h3 { margin: 25px 0 8px; color: var(--ink); font-size: 14px; }
+.diagnostics-table-wrap { overflow-x: auto; }
+.diagnostics-table-wrap td:first-child { max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.empty-jobs { margin: 8px 0 0; font-size: 12px; }
 @media (max-width: 760px) {
   .landing-nav .secondary-button { display: none; }
   .provider-brand { padding-right: 0; }
@@ -233,4 +253,7 @@ tbody tr:last-child td { border: 0; }
   .provider-details, .provider-connect-copy { margin-left: 0; }
   .provider-details dl { grid-template-columns: repeat(2, 1fr); }
   .provider-security-note { grid-template-columns: 1fr; gap: 7px; }
+  .diagnostics-heading { align-items: flex-start; flex-direction: column; }
+  .diagnostics-grid { grid-template-columns: repeat(2, 1fr); }
+  .delivery-note { flex-direction: column; gap: 4px; }
 }

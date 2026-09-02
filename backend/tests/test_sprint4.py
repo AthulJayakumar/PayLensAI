@@ -11,19 +11,19 @@ import pytest
 from cryptography.fernet import Fernet
 from fastapi.testclient import TestClient
 
-from app.api.auth import AuthenticatedMerchant, StaticAuthenticator
+from app.api.auth import AuthenticatedMerchant, MerchantRole, StaticAuthenticator
 from app.api.errors import APIError
 from app.api.main import create_app
 from app.api.repositories import InMemoryAnalysisRepository
 from app.api.services.analysis import AnalysisService
 from app.api.services.providers import ProviderService
-from app.jobs import InMemoryJobQueue, JobService
+from app.jobs import InMemoryJobQueue, JobService, JobWorker
 from app.models import DataAvailability, PaymentStatus, SourceType
 from app.persistence.analysis_repository import PostgreSQLAnalysisRepository
 from app.persistence.database import Base, create_engine_from_url
 from app.persistence.provider_repository import PostgreSQLRawProviderDataStore, SQLProviderRepository
 from app.persistence.pilot_repository import InMemoryPilotRepository
-from app.providers.models import ConnectionStatus, OAuthTokenResponse, ProviderConnection, RawProviderObject, SyncStatus
+from app.providers.models import ConnectionStatus, JobStatus, JobType, OAuthTokenResponse, ProviderConnection, RawProviderObject, SyncStatus
 from app.providers.raw_storage import InMemoryRawProviderDataStore
 from app.providers.repository import InMemoryProviderRepository
 from app.providers.security import CredentialCipher, CredentialVault, OAuthStateManager
@@ -105,6 +105,9 @@ class FakeStripeTransport(StripeTransport):
 
     def retrieve_payment_intent(self, access_token: str, transaction_id: str) -> dict:
         return self.retrieve_payload
+
+    def retrieve_charge(self, access_token: str, charge_id: str) -> dict:
+        return {"id": charge_id, "payment_intent": "pi_dispute"}
 
     def retrieve_account(self, access_token: str) -> dict:
         return {"id": "acct_sandbox_merchant_a"}
@@ -408,6 +411,101 @@ def test_webhook_endpoint_durably_queues_once_and_deduplicates_retries() -> None
     assert first.status_code == 200 and first.json()["status"] == "queued"
     assert second.status_code == 200 and second.json()["status"] == "duplicate"
     assert len(queue.messages) == 1
+
+
+def test_webhook_diagnostics_track_receipt_processing_and_canonical_persistence() -> None:
+    service, _, repository, _, _ = provider_context()
+    pilot_repository, queue = InMemoryPilotRepository(), InMemoryJobQueue()
+    jobs = JobService(pilot_repository, queue)
+    app = create_app(provider_service=service, authenticator=StaticAuthenticator(MERCHANT_A))
+    app.state.job_service = jobs
+    client = TestClient(app)
+    event = {
+        "id": "evt_end_to_end", "object": "event", "account": "acct_sandbox_merchant_a",
+        "type": "payment_intent.succeeded", "data": {"object": stripe_intent("pi_end_to_end")},
+    }
+    payload = json.dumps(event, separators=(",", ":")).encode()
+
+    accepted = client.post("/webhooks/stripe", content=payload, headers={"Stripe-Signature": stripe_signature(payload)})
+    assert accepted.status_code == 200 and accepted.json()["status"] == "queued"
+    before = client.get("/providers/stripe/diagnostics").json()["diagnostics"]
+    assert before["pipeline_status"] == "PROCESSING"
+    assert before["latest_webhook"]["event_id"] == "evt_end_to_end"
+    assert before["latest_webhook"]["processed_at"] is None
+
+    queued = pilot_repository.get_job(accepted.json()["job_id"], MERCHANT_A.merchant_id)
+    completed = JobWorker(pilot_repository, service).execute(queued.id, MERCHANT_A.merchant_id)
+    assert completed.status == JobStatus.COMPLETED
+    after = client.get("/providers/stripe/diagnostics").json()["diagnostics"]
+    assert after["pipeline_status"] == "HEALTHY"
+    assert after["latest_webhook"]["processed_at"] is not None
+    assert after["canonical_transaction_count"] == 1
+    assert repository.get_canonical("merchant_a", "STRIPE", "pi_end_to_end") is not None
+
+    duplicate = client.post("/webhooks/stripe", content=payload, headers={"Stripe-Signature": stripe_signature(payload)})
+    assert duplicate.json()["status"] == "duplicate"
+    assert len(queue.messages) == 1
+
+
+@pytest.mark.parametrize(
+    ("event_type", "event_object"),
+    [
+        ("payment_intent.payment_failed", stripe_intent("pi_failed_lifecycle", status="requires_payment_method")),
+        ("payment_intent.processing", stripe_intent("pi_processing_lifecycle", status="processing")),
+        ("payment_intent.canceled", stripe_intent("pi_canceled_lifecycle", status="canceled")),
+        ("charge.refunded", {"id": "ch_refund", "payment_intent": "pi_refund"}),
+        ("charge.dispute.created", {"id": "dp_created", "charge": {"payment_intent": "pi_dispute"}}),
+        ("charge.dispute.closed", {"id": "dp_closed", "charge": "ch_dispute"}),
+    ],
+)
+def test_stripe_transaction_lifecycle_events_are_processed(event_type: str, event_object: dict) -> None:
+    service, transport, repository, _, _ = provider_context()
+    transport.retrieve_payload = stripe_intent("pi_refreshed")
+    event = {
+        "id": f"evt_{event_type.replace('.', '_')}", "object": "event",
+        "account": "acct_sandbox_merchant_a", "type": event_type,
+        "data": {"object": event_object},
+    }
+    payload = json.dumps(event, separators=(",", ":")).encode()
+
+    result = service.process_webhook(payload, stripe_signature(payload))
+
+    assert result["status"] == "processed"
+    assert repository.latest_webhook_event("merchant_a", "STRIPE")["processed_at"] is not None
+    assert len(repository.list_canonical("merchant_a", "STRIPE")) == 1
+
+
+def test_failed_background_job_can_be_retried_once_without_exposing_payload() -> None:
+    service, _, _, _, _ = provider_context()
+    pilot_repository, queue = InMemoryPilotRepository(), InMemoryJobQueue()
+    jobs = JobService(pilot_repository, queue)
+    failed = jobs.enqueue(
+        merchant_id=MERCHANT_A.merchant_id,
+        job_type=JobType.WEBHOOK,
+        deduplication_key="failed-webhook",
+        payload={"event": {"id": "evt_safe_retry"}},
+    ).model_copy(update={"status": JobStatus.FAILED, "attempts": 4, "error_code": "ProviderTimeout"})
+    pilot_repository.save_job(failed)
+    app = create_app(provider_service=service, authenticator=StaticAuthenticator(MERCHANT_A))
+    app.state.job_service = jobs
+    client = TestClient(app)
+
+    response = client.post(f"/jobs/{failed.id}/retry")
+    repeated = client.post(f"/jobs/{failed.id}/retry")
+
+    assert response.status_code == 202 and response.json()["job"]["status"] == "QUEUED"
+    assert repeated.json()["job"]["id"] == response.json()["job"]["id"]
+    diagnostics = client.get("/providers/stripe/diagnostics").json()["diagnostics"]
+    assert diagnostics["recent_jobs"][0]["retryable"] is False
+    assert diagnostics["recent_jobs"][1]["retryable"] is False
+    assert "payload" not in diagnostics["recent_jobs"][0]
+    assert len(queue.messages) == 2
+
+    analyst = MERCHANT_A.model_copy(update={"role": MerchantRole.ANALYST})
+    analyst_app = create_app(provider_service=service, authenticator=StaticAuthenticator(analyst))
+    analyst_app.state.job_service = jobs
+    denied = TestClient(analyst_app).post(f"/jobs/{failed.id}/retry")
+    assert denied.status_code == 403 and denied.json()["error"]["code"] == "ROLE_FORBIDDEN"
 
 
 def test_reconciliation_detects_repairs_and_duplicates() -> None:

@@ -6,6 +6,7 @@ import { InsightDetailView } from "../components/InsightDetailView";
 import { InsightsFeed } from "../components/InsightsFeed";
 import { UploadPanel } from "../components/UploadPanel";
 import { ProviderConnections } from "../components/ProviderConnections";
+import { ProviderDiagnostics } from "../components/ProviderDiagnostics";
 import LoginPage from "../app/login/page";
 import { PayLensApiError } from "../lib/api";
 import type { AnalysisSummary, Insight, InsightDetailResponse, KpiResponse, SegmentsResponse } from "../lib/api";
@@ -216,6 +217,38 @@ it("shows processed counts returned by an asynchronous Stripe sync job", async (
   await user.click(await screen.findByRole("button", { name: "Sync now" }));
   expect(await screen.findByText("4,743 transactions normalised")).toBeInTheDocument();
   expect(jobWaiter).toHaveBeenCalledWith("job_1");
+});
+
+it("shows Stripe pipeline evidence and retries a failed background job", async () => {
+  const failedJob = {
+    id: "job_failed", type: "WEBHOOK" as const, status: "FAILED" as const, attempts: 4,
+    error_code: "ProviderTimeout", created_at: "2026-09-02T10:00:00Z",
+    updated_at: "2026-09-02T10:05:00Z", retryable: true,
+  };
+  const diagnostics = {
+    provider: "STRIPE" as const, pipeline_status: "DEGRADED" as const,
+    connection_status: "CONNECTED" as const, webhook_status: "CONFIGURED",
+    last_sync_at: "2026-09-02T09:00:00Z", transactions_imported: 4743,
+    canonical_transaction_count: 4744, latest_sync: null,
+    latest_webhook: {
+      event_id: "evt_end_to_end", event_type: "payment_intent.succeeded",
+      received_at: "2026-09-02T10:00:00Z", processed_at: "2026-09-02T10:00:01Z",
+    },
+    recent_jobs: [failedJob], delivery_protection: { automatic_attempts: 4, dead_letter_queue: true },
+  };
+  const loader = vi.fn().mockResolvedValue({ diagnostics });
+  const retry = vi.fn().mockResolvedValue({ job: { id: "job_retry", status: "QUEUED" } });
+  const user = userEvent.setup();
+
+  render(<ProviderDiagnostics loader={loader} retry={retry} />);
+
+  expect(await screen.findByText("4,744")).toBeInTheDocument();
+  expect(screen.getByText("payment_intent.succeeded")).toBeInTheDocument();
+  expect(screen.getByText("evt_end_to_end")).toBeInTheDocument();
+  expect(screen.getByText("Enabled")).toBeInTheDocument();
+  await user.click(screen.getByRole("button", { name: "Retry" }));
+  expect(retry).toHaveBeenCalledWith("job_failed");
+  await waitFor(() => expect(loader).toHaveBeenCalledTimes(2));
 });
 
 it("replaces the provider loading state with a session-expired action", async () => {

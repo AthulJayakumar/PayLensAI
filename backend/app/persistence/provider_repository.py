@@ -104,6 +104,20 @@ class SQLProviderRepository(ProviderRepository):
             row = session.scalar(select(SyncJobRow).where(SyncJobRow.id == job_id, SyncJobRow.merchant_id == merchant_id))
             return _job(row) if row else None
 
+    def latest_sync_job(self, merchant_id: str, provider: str) -> SyncJob | None:
+        with Session(self.engine) as session:
+            row = session.scalar(
+                select(SyncJobRow)
+                .join(ProviderConnectionRow, ProviderConnectionRow.id == SyncJobRow.connection_id)
+                .where(
+                    SyncJobRow.merchant_id == merchant_id,
+                    ProviderConnectionRow.provider == provider,
+                )
+                .order_by(SyncJobRow.started_at.desc())
+                .limit(1)
+            )
+            return _job(row) if row else None
+
     def upsert_canonical(self, transaction: PayLensTransaction) -> bool:
         """Insert once per merchant/provider transaction or update provider truth."""
         with Session(self.engine) as session, session.begin():
@@ -142,11 +156,40 @@ class SQLProviderRepository(ProviderRepository):
                 session.add(WebhookEventRow(
                     id=f"webhook_{secrets.token_hex(12)}", provider="STRIPE", provider_event_id=event_id,
                     merchant_id=merchant_id, event_type=event_type, received_at=utcnow(),
-                    processed_at=utcnow(), raw_object_id=raw_object_id,
+                    processed_at=None, raw_object_id=raw_object_id,
                 ))
             return True
         except IntegrityError:
             return False
+
+    def mark_webhook_processed(self, event_id: str, merchant_id: str) -> None:
+        with Session(self.engine) as session, session.begin():
+            row = session.scalar(select(WebhookEventRow).where(
+                WebhookEventRow.provider == "STRIPE",
+                WebhookEventRow.provider_event_id == event_id,
+                WebhookEventRow.merchant_id == merchant_id,
+            ))
+            if row is not None:
+                row.processed_at = utcnow()
+
+    def latest_webhook_event(self, merchant_id: str, provider: str) -> dict | None:
+        with Session(self.engine) as session:
+            row = session.scalar(
+                select(WebhookEventRow)
+                .where(WebhookEventRow.merchant_id == merchant_id, WebhookEventRow.provider == provider)
+                .order_by(WebhookEventRow.received_at.desc())
+                .limit(1)
+            )
+            if row is None:
+                return None
+            return {
+                "event_id": row.provider_event_id,
+                "merchant_id": row.merchant_id,
+                "provider": row.provider,
+                "event_type": row.event_type,
+                "received_at": _aware(row.received_at),
+                "processed_at": _aware(row.processed_at),
+            }
 
     def store_oauth_state(self, nonce_hash: str, merchant_id: str, created_at: datetime, expires_at: datetime) -> None:
         with Session(self.engine) as session, session.begin():

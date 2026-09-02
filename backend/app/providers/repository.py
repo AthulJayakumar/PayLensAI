@@ -36,6 +36,9 @@ class ProviderRepository(ABC):
     def get_sync_job(self, job_id: str, merchant_id: str) -> SyncJob | None: ...
 
     @abstractmethod
+    def latest_sync_job(self, merchant_id: str, provider: str) -> SyncJob | None: ...
+
+    @abstractmethod
     def upsert_canonical(self, transaction: PayLensTransaction) -> bool: ...
 
     @abstractmethod
@@ -46,6 +49,12 @@ class ProviderRepository(ABC):
 
     @abstractmethod
     def record_webhook_event(self, *, event_id: str, merchant_id: str, event_type: str, raw_object_id: str) -> bool: ...
+
+    @abstractmethod
+    def mark_webhook_processed(self, event_id: str, merchant_id: str) -> None: ...
+
+    @abstractmethod
+    def latest_webhook_event(self, merchant_id: str, provider: str) -> dict | None: ...
 
     @abstractmethod
     def store_oauth_state(self, nonce_hash: str, merchant_id: str, created_at: datetime, expires_at: datetime) -> None: ...
@@ -60,7 +69,7 @@ class InMemoryProviderRepository(ProviderRepository):
         self.credentials: dict[str, tuple[str, str | None]] = {}
         self.jobs: dict[str, SyncJob] = {}
         self.canonical: dict[tuple[str, str, str], PayLensTransaction] = {}
-        self.webhook_events: set[str] = set()
+        self.webhook_events: dict[str, dict] = {}
         self.oauth_states: dict[str, tuple[str, datetime, datetime | None]] = {}
         self._lock = RLock()
 
@@ -99,6 +108,15 @@ class InMemoryProviderRepository(ProviderRepository):
             job = self.jobs.get(job_id)
         return job if job and job.merchant_id == merchant_id else None
 
+    def latest_sync_job(self, merchant_id: str, provider: str) -> SyncJob | None:
+        with self._lock:
+            connection_ids = {
+                item.id for item in self.connections.values()
+                if item.merchant_id == merchant_id and item.provider == provider
+            }
+            jobs = [item for item in self.jobs.values() if item.connection_id in connection_ids]
+        return max(jobs, key=lambda item: item.started_at) if jobs else None
+
     def upsert_canonical(self, transaction: PayLensTransaction) -> bool:
         key = (transaction.merchant_id, transaction.provider.value, transaction.provider_transaction_id)
         with self._lock:
@@ -118,8 +136,29 @@ class InMemoryProviderRepository(ProviderRepository):
         with self._lock:
             if event_id in self.webhook_events:
                 return False
-            self.webhook_events.add(event_id)
+            self.webhook_events[event_id] = {
+                "event_id": event_id,
+                "merchant_id": merchant_id,
+                "provider": "STRIPE",
+                "event_type": event_type,
+                "received_at": datetime.now(timezone.utc),
+                "processed_at": None,
+            }
             return True
+
+    def mark_webhook_processed(self, event_id: str, merchant_id: str) -> None:
+        with self._lock:
+            event = self.webhook_events.get(event_id)
+            if event and event["merchant_id"] == merchant_id:
+                event["processed_at"] = datetime.now(timezone.utc)
+
+    def latest_webhook_event(self, merchant_id: str, provider: str) -> dict | None:
+        with self._lock:
+            events = [
+                item for item in self.webhook_events.values()
+                if item["merchant_id"] == merchant_id and item["provider"] == provider
+            ]
+        return max(events, key=lambda item: item["received_at"]).copy() if events else None
 
     def store_oauth_state(self, nonce_hash: str, merchant_id: str, created_at: datetime, expires_at: datetime) -> None:
         with self._lock:

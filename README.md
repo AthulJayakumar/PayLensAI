@@ -5,7 +5,7 @@ authorised Stripe data into one canonical model, calculates deterministic
 currency-safe metrics, and surfaces structured findings. It does not process or
 route payments.
 
-The verified Sprints 1–5 include:
+The verified Sprints 1–6 include:
 
 - canonical Pydantic transactions and deterministic 100,000-row synthetic data;
 - exact KPIs, segmentation, baselines, seven detectors, and deterministic severity;
@@ -17,12 +17,15 @@ The verified Sprints 1–5 include:
 - both CSV and Stripe feeding the same analytics and insight engine.
 - reproducible low-cost AWS pilot infrastructure with ECS, RDS, S3, SQS,
   Cognito, CloudFront, audit events, monitoring, budgets, and reviewed CI/CD.
+- Stripe operational diagnostics, explicit webhook receipt/processing state,
+  merchant-scoped job retry visibility, and end-to-end lifecycle validation.
 
 Architecture documentation: [Sprint 1](docs/sprint-1-architecture.md),
 [Sprint 2](docs/sprint-2-intelligence-engine.md),
 [Sprint 3](docs/sprint-3-product-prototype.md), and
 [Sprint 4](docs/sprint-4-stripe-persistence.md), and
-[Sprint 5](docs/sprint-5-aws-pilot.md).
+[Sprint 5](docs/sprint-5-aws-pilot.md), and
+[Sprint 6](docs/sprint-6-operational-readiness.md).
 
 ## Local setup
 
@@ -104,5 +107,5 @@ AWS deployment access, bootstrap permissions, and the GitHub OIDC role design
 are documented in `docs/aws-deployment-access.md`.
 
 PayPal, Adyen, Bedrock/LLM explanations, Chrome extension, payment routing, and
-payment execution remain deferred. Actual pilot deployment and real Stripe
-test-mode verification are tracked as explicit Sprint 5 gates.
+payment execution remain deferred. Multi-merchant Stripe OAuth remains gated
+by Stripe business verification.

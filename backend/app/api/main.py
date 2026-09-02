@@ -51,7 +51,7 @@ def create_app(
     app = FastAPI(
         title="PayLens API",
         description="Local deterministic payment-intelligence prototype",
-        version="0.5.0",
+        version="0.6.0",
         root_path=os.environ.get("PAYLENS_ROOT_PATH", ""),
     )
     logging.basicConfig(level=os.environ.get("LOG_LEVEL", "INFO"), format="%(message)s")
@@ -61,7 +61,7 @@ def create_app(
         CORSMiddleware,
         allow_origins=origins,
         allow_credentials=environment not in {"local", "test"},
-        allow_methods=["GET", "POST", "OPTIONS"],
+        allow_methods=["GET", "POST", "DELETE", "OPTIONS"],
         allow_headers=["Authorization", "Content-Type", "X-PayLens-Dev-Key", "Stripe-Signature", "X-Request-ID"],
     )
     # Persistence is optional locally but configured through injected secrets on ECS.

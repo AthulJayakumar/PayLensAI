@@ -42,7 +42,9 @@ def main() -> None:
     while running:
         empty = True
         for queue_url in queues.values():
-            response = sqs.receive_message(QueueUrl=queue_url, MaxNumberOfMessages=1, WaitTimeSeconds=5, VisibilityTimeout=300)
+            # Keep each queue's configured visibility timeout. Overriding it here
+            # would shorten 15-minute sync/analysis leases and allow duplicate work.
+            response = sqs.receive_message(QueueUrl=queue_url, MaxNumberOfMessages=1, WaitTimeSeconds=5)
             for message in response.get("Messages", []):
                 empty = False
                 body = json.loads(message["Body"])

@@ -2,6 +2,7 @@
 
 import { AppHeader } from "../../components/AppHeader";
 import { ProviderConnections } from "../../components/ProviderConnections";
+import { ProviderDiagnostics } from "../../components/ProviderDiagnostics";
 
 export default function ProvidersPage() {
   return (
@@ -13,6 +14,7 @@ export default function ProvidersPage() {
         <p>Connect a Stripe sandbox or test account, import its payment history, and run the same deterministic analytics used for CSV data.</p>
       </section>
       <ProviderConnections />
+      <ProviderDiagnostics />
       <aside className="provider-security-note">
         <strong>Read-oriented intelligence foundation</strong>
         <span>Provider credentials are encrypted at rest. Webhooks are signature verified and duplicate events are idempotent.</span>

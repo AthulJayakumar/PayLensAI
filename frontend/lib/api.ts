@@ -114,6 +114,35 @@ export type AsyncJob = {
   error_code: string | null;
 };
 export type JobResponse = { job: AsyncJob };
+export type OperationalJob = {
+  id: string;
+  type: AsyncJob["type"];
+  status: AsyncJob["status"];
+  attempts: number;
+  error_code: string | null;
+  created_at: string;
+  updated_at: string;
+  retryable: boolean;
+};
+export type StripeDiagnostics = {
+  provider: "STRIPE";
+  pipeline_status: "NOT_CONNECTED" | "HEALTHY" | "PROCESSING" | "DEGRADED";
+  connection_status: ProviderConnection["status"];
+  webhook_status: string;
+  last_sync_at: string | null;
+  transactions_imported: number;
+  canonical_transaction_count: number;
+  latest_sync: SyncJob | null;
+  latest_webhook: {
+    event_id: string;
+    event_type: string;
+    received_at: string;
+    processed_at: string | null;
+  } | null;
+  recent_jobs: OperationalJob[];
+  delivery_protection: { automatic_attempts: number; dead_letter_queue: boolean };
+};
+export type StripeDiagnosticsResponse = { diagnostics: StripeDiagnostics };
 
 export class PayLensApiError extends Error {
   constructor(public code: string, message: string) {
@@ -193,6 +222,14 @@ export async function syncStripe(): Promise<{ sync_job: SyncJob } | JobResponse>
     headers: { ...authHeaders(), "Content-Type": "application/json" },
     body: "{}",
   }));
+}
+
+export async function fetchStripeDiagnostics(): Promise<StripeDiagnosticsResponse> {
+  return parseResponse(await fetch(`${API_URL}/providers/stripe/diagnostics`, requestOptions(authHeaders())));
+}
+
+export async function retryJob(jobId: string): Promise<JobResponse> {
+  return parseResponse(await fetch(`${API_URL}/jobs/${jobId}/retry`, { method: "POST", headers: authHeaders() }));
 }
 
 export async function disconnectStripe(): Promise<void> {

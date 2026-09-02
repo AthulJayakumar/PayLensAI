@@ -87,6 +87,23 @@ class JobService:
     def get_owned(self, job_id: str, merchant_id: str) -> AsyncJob | None:
         return self.repository.get_job(job_id, merchant_id)
 
+    def recent(self, merchant_id: str, *, limit: int = 10) -> list[AsyncJob]:
+        return self.repository.list_jobs(merchant_id, limit=limit)
+
+    def retry(self, job_id: str, merchant_id: str) -> AsyncJob:
+        """Create one idempotent manual retry for a failed merchant-owned job."""
+        failed = self.get_owned(job_id, merchant_id)
+        if failed is None:
+            raise KeyError(job_id)
+        if failed.status != JobStatus.FAILED:
+            raise ValueError("Only failed jobs can be retried")
+        return self.enqueue(
+            merchant_id=merchant_id,
+            job_type=failed.type,
+            deduplication_key=f"manual-retry:{failed.id}",
+            payload={**failed.payload, "retry_of": failed.id},
+        )
+
 
 class JobWorker:
     """Transition durable jobs and reuse existing provider/analysis services."""

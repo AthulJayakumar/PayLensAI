@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "paylens-ai"
-version = "0.5.0"
+version = "0.6.0"
 description = "Merchant-connected payment-intelligence foundation for PayLens AI"
 readme = "README.md"
 requires-python = ">=3.11"

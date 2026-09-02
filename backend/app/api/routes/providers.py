@@ -45,6 +45,39 @@ def provider_status(
     }]}
 
 
+@router.get("/stripe/diagnostics")
+def stripe_diagnostics(
+    http_request: Request,
+    merchant: AuthenticatedMerchant = Depends(get_current_merchant),
+    service: ProviderService = Depends(get_provider_service),
+) -> dict:
+    """Expose safe, tenant-scoped ingestion health for pilot operators."""
+    diagnostics = service.diagnostics(merchant.merchant_id)
+    jobs = getattr(http_request.app.state, "job_service", None)
+    recent_jobs = jobs.recent(merchant.merchant_id, limit=10) if jobs is not None else []
+    retried_job_ids = {job.payload.get("retry_of") for job in recent_jobs if job.payload.get("retry_of")}
+    if any(job.status.value == "FAILED" and job.id not in retried_job_ids for job in recent_jobs):
+        diagnostics["pipeline_status"] = "DEGRADED"
+    diagnostics["recent_jobs"] = [
+        {
+            "id": job.id,
+            "type": job.type.value,
+            "status": job.status.value,
+            "attempts": job.attempts,
+            "error_code": job.error_code,
+            "created_at": job.created_at,
+            "updated_at": job.updated_at,
+            "retryable": job.status.value == "FAILED" and job.id not in retried_job_ids,
+        }
+        for job in recent_jobs
+    ]
+    diagnostics["delivery_protection"] = {
+        "automatic_attempts": 4,
+        "dead_letter_queue": True,
+    }
+    return {"diagnostics": diagnostics}
+
+
 @router.post("/stripe/authorize")
 def authorize_stripe(
     merchant: AuthenticatedMerchant = Depends(require_roles(MerchantRole.OWNER, MerchantRole.ADMIN)),

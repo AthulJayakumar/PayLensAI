@@ -10,7 +10,7 @@ RUN npm run build
 # The shared lockfile includes the native Windows Rolldown binding used by
 # local development. Force lets npm discard that dev-only binding when this
 # Linux image is reduced to production dependencies.
-RUN npm prune --omit=dev --force && npm pkg set version=0.5.0
+RUN npm prune --omit=dev --force && npm pkg set version=0.6.0
 
 # Serve only production dependencies as an unprivileged user.
 FROM node:24-alpine

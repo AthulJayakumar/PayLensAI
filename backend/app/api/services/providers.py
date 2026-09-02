@@ -68,6 +68,34 @@ class ProviderService:
     def status(self, merchant_id: str) -> ProviderConnection | None:
         return self.repository.get_connection(merchant_id, "STRIPE")
 
+    def diagnostics(self, merchant_id: str) -> dict:
+        """Return merchant-scoped operational state without provider payloads or credentials."""
+        connection = self.status(merchant_id)
+        latest_sync = self.repository.latest_sync_job(merchant_id, "STRIPE")
+        latest_webhook = self.repository.latest_webhook_event(merchant_id, "STRIPE")
+        canonical_count = len(self.repository.list_canonical(merchant_id, "STRIPE"))
+        if connection is None:
+            pipeline_status = "NOT_CONNECTED"
+        elif connection.status != ConnectionStatus.CONNECTED:
+            pipeline_status = "DEGRADED"
+        elif latest_webhook and latest_webhook["processed_at"] is None:
+            pipeline_status = "PROCESSING"
+        elif latest_sync and latest_sync.status in {SyncStatus.FAILED, SyncStatus.PARTIAL}:
+            pipeline_status = "DEGRADED"
+        else:
+            pipeline_status = "HEALTHY"
+        return {
+            "provider": "STRIPE",
+            "pipeline_status": pipeline_status,
+            "connection_status": connection.status.value if connection else "NOT_CONNECTED",
+            "webhook_status": connection.webhook_status if connection else "NOT_CONFIGURED",
+            "last_sync_at": connection.last_sync_at if connection else None,
+            "transactions_imported": connection.transactions_imported if connection else 0,
+            "canonical_transaction_count": canonical_count,
+            "latest_sync": latest_sync.model_dump(mode="json") if latest_sync else None,
+            "latest_webhook": latest_webhook,
+        }
+
     def authorization_url(self, merchant_id: str) -> str:
         connector = self._configured_connector()
         if connector.connection_mode != "OAUTH":
@@ -317,8 +345,8 @@ class ProviderService:
             transaction_raw_id = self.raw_store.put(transaction_raw)
             transaction = self.normalizer.normalize(object_payload, merchant_id=connection.merchant_id, raw_reference=transaction_raw_id, source=SourceType.WEBHOOK)
             self.repository.upsert_canonical(transaction)
-            return {"status": "processed", "event_id": event["id"]}
-        if event["type"] in {"charge.refunded", "charge.dispute.created", "charge.dispute.closed"}:
+            result = {"status": "processed", "event_id": event["id"]}
+        elif event["type"] in {"charge.refunded", "charge.dispute.created", "charge.dispute.closed"}:
             credentials = self._credentials(connection)
             payment_intent_id = object_payload.get("payment_intent")
             charge = object_payload.get("charge")
@@ -330,13 +358,21 @@ class ProviderService:
                 )
                 payment_intent_id = charge_payload.get("payment_intent")
             if not payment_intent_id:
-                return {"status": "ignored", "event_id": event["id"]}
-            intent = self._configured_connector().fetch_transaction(access_token=credentials.access_token, transaction_id=payment_intent_id)
-            intent_raw = self._raw(connection.merchant_id, "payment_intent", intent, "WEBHOOK_REFRESH")
-            intent_raw_id = self.raw_store.put(intent_raw)
-            self.repository.upsert_canonical(self.normalizer.normalize(intent, merchant_id=connection.merchant_id, raw_reference=intent_raw_id, source=SourceType.WEBHOOK))
-            return {"status": "processed", "event_id": event["id"]}
-        return {"status": "ignored", "event_id": event["id"]}
+                result = {"status": "ignored", "event_id": event["id"]}
+            else:
+                intent = self._configured_connector().fetch_transaction(access_token=credentials.access_token, transaction_id=payment_intent_id)
+                intent_raw = self._raw(connection.merchant_id, "payment_intent", intent, "WEBHOOK_REFRESH")
+                intent_raw_id = self.raw_store.put(intent_raw)
+                self.repository.upsert_canonical(self.normalizer.normalize(intent, merchant_id=connection.merchant_id, raw_reference=intent_raw_id, source=SourceType.WEBHOOK))
+                result = {"status": "processed", "event_id": event["id"]}
+        else:
+            result = {"status": "ignored", "event_id": event["id"]}
+        # Receipt and processing are separate lifecycle points. A worker failure
+        # deliberately leaves processed_at empty so diagnostics can surface it.
+        self.repository.mark_webhook_processed(event["id"], connection.merchant_id)
+        self._audit(connection.merchant_id, "STRIPE_WEBHOOK_PROCESSED", event["id"],
+                    metadata={"event_type": event["type"], "outcome": result["status"]})
+        return result
 
     def reconcile(self, merchant_id: str) -> ReconciliationResult:
         """Fetch provider truth and repair missing or changed canonical rows."""

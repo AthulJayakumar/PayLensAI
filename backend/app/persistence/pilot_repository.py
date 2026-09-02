@@ -60,6 +60,10 @@ class InMemoryPilotRepository:
         job = self.jobs.get(job_id)
         return job if job and job.merchant_id == merchant_id else None
 
+    def list_jobs(self, merchant_id: str, *, limit: int = 10) -> list[AsyncJob]:
+        jobs = [item for item in self.jobs.values() if item.merchant_id == merchant_id]
+        return sorted(jobs, key=lambda item: item.created_at, reverse=True)[:limit]
+
     def record(self, event: AuditEvent) -> None:
         self.audit_events.append(event)
 
@@ -117,6 +121,16 @@ class SQLPilotRepository:
         with Session(self.engine) as session:
             row = session.scalar(select(AsyncJobRow).where(AsyncJobRow.id == job_id, AsyncJobRow.merchant_id == merchant_id))
             return self._job(row) if row else None
+
+    def list_jobs(self, merchant_id: str, *, limit: int = 10) -> list[AsyncJob]:
+        with Session(self.engine) as session:
+            rows = session.scalars(
+                select(AsyncJobRow)
+                .where(AsyncJobRow.merchant_id == merchant_id)
+                .order_by(AsyncJobRow.created_at.desc())
+                .limit(limit)
+            ).all()
+            return [self._job(row) for row in rows]
 
     def record(self, event: AuditEvent) -> None:
         with Session(self.engine) as session, session.begin():

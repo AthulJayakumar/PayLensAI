@@ -196,13 +196,20 @@ export class PayLensPilotStack extends cdk.Stack {
       const alarm = new cloudwatch.Alarm(this, `${name}Alarm`, { metric, threshold: 1, evaluationPeriods: 1, treatMissingData: cloudwatch.TreatMissingData.NOT_BREACHING });
       alarm.addAlarmAction(...alarmActions);
     }
+    const staleWebhookAlarm = new cloudwatch.Alarm(this, "StaleWebhookAlarm", {
+      metric: webhook.queue.metricApproximateAgeOfOldestMessage({ period: cdk.Duration.minutes(1) }),
+      threshold: 300,
+      evaluationPeriods: 2,
+      treatMissingData: cloudwatch.TreatMissingData.NOT_BREACHING,
+    });
+    staleWebhookAlarm.addAlarmAction(...alarmActions);
     const jobFailureMetric = new logs.MetricFilter(this, "WorkerFailureMetric", { logGroup: workerLog,
       metricNamespace: "PayLens", metricName: "WorkerJobFailures", filterPattern: logs.FilterPattern.stringValue("$.event", "=", "job_failed"), metricValue: "1" });
     const workerFailureAlarm = new cloudwatch.Alarm(this, "WorkerFailureAlarm", { metric: jobFailureMetric.metric({ period: cdk.Duration.minutes(5), statistic: "sum" }), threshold: 1, evaluationPeriods: 1, treatMissingData: cloudwatch.TreatMissingData.NOT_BREACHING });
     workerFailureAlarm.addAlarmAction(...alarmActions);
     const dbConnectionsAlarm = new cloudwatch.Alarm(this, "DatabaseConnectionsAlarm", { metric: database.metricDatabaseConnections(), threshold: 70, evaluationPeriods: 2, treatMissingData: cloudwatch.TreatMissingData.NOT_BREACHING });
     dbConnectionsAlarm.addAlarmAction(...alarmActions);
-    new cloudwatch.Dashboard(this, "Dashboard", { dashboardName: prefix, widgets: [[new cloudwatch.GraphWidget({ title: "API target latency / 5xx", left: [alb.metrics.targetResponseTime()], right: [alb.metrics.httpCodeTarget(elbv2.HttpCodeTarget.TARGET_5XX_COUNT)] })], [new cloudwatch.GraphWidget({ title: "Queue backlog", left: [providerSync.queue.metricApproximateNumberOfMessagesVisible(), analysis.queue.metricApproximateNumberOfMessagesVisible(), webhook.queue.metricApproximateNumberOfMessagesVisible()] })]] });
+    new cloudwatch.Dashboard(this, "Dashboard", { dashboardName: prefix, widgets: [[new cloudwatch.GraphWidget({ title: "API target latency / 5xx", left: [alb.metrics.targetResponseTime()], right: [alb.metrics.httpCodeTarget(elbv2.HttpCodeTarget.TARGET_5XX_COUNT)] })], [new cloudwatch.GraphWidget({ title: "Queue backlog / webhook age", left: [providerSync.queue.metricApproximateNumberOfMessagesVisible(), analysis.queue.metricApproximateNumberOfMessagesVisible(), webhook.queue.metricApproximateNumberOfMessagesVisible()], right: [webhook.queue.metricApproximateAgeOfOldestMessage()] })]] });
     // Deployment scripts consume these outputs instead of duplicating generated identifiers.
     new cdk.CfnOutput(this, "ApplicationUrl", { value: `https://${distribution.distributionDomainName}` });
     new cdk.CfnOutput(this, "UserPoolId", { value: userPool.userPoolId });
@@ -218,5 +225,7 @@ export class PayLensPilotStack extends cdk.Stack {
     new cdk.CfnOutput(this, "ApiTaskDefinitionArn", { value: apiTask.taskDefinitionArn });
     new cdk.CfnOutput(this, "ApplicationSubnetIds", { value: vpc.publicSubnets.map(subnet => subnet.subnetId).join(",") });
     new cdk.CfnOutput(this, "TaskSecurityGroupId", { value: taskSg.securityGroupId });
+    new cdk.CfnOutput(this, "DatabaseInstanceIdentifier", { value: database.instanceIdentifier });
+    new cdk.CfnOutput(this, "WebhookDeadLetterQueueUrl", { value: webhook.dlq.queueUrl });
   }
 }

@@ -17,10 +17,12 @@ from app.api.main import create_app
 from app.api.repositories import InMemoryAnalysisRepository
 from app.api.services.analysis import AnalysisService
 from app.api.services.providers import ProviderService
+from app.jobs import InMemoryJobQueue, JobService
 from app.models import DataAvailability, PaymentStatus, SourceType
 from app.persistence.analysis_repository import PostgreSQLAnalysisRepository
 from app.persistence.database import Base, create_engine_from_url
 from app.persistence.provider_repository import PostgreSQLRawProviderDataStore, SQLProviderRepository
+from app.persistence.pilot_repository import InMemoryPilotRepository
 from app.providers.models import ConnectionStatus, OAuthTokenResponse, ProviderConnection, RawProviderObject, SyncStatus
 from app.providers.raw_storage import InMemoryRawProviderDataStore
 from app.providers.repository import InMemoryProviderRepository
@@ -333,6 +335,22 @@ def test_partial_sync_is_retry_safe_and_resumable() -> None:
     assert len(repository.list_canonical("merchant_a", "STRIPE")) == 2
 
 
+def test_completed_follow_up_sync_uses_incremental_window_and_idempotent_upserts() -> None:
+    service, transport, repository, _, _ = provider_context()
+    first = service.sync(MERCHANT_A)
+    assert first.status == SyncStatus.COMPLETED
+    first_completed_at = service.status(MERCHANT_A.merchant_id).last_sync_at
+
+    transport.calls.clear()
+    transport.pages = {None: {"data": [stripe_intent("pi_2")], "has_more": False}}
+    second = service.sync(MERCHANT_A)
+
+    assert second.status == SyncStatus.COMPLETED
+    assert second.records_normalised == 1
+    assert len(repository.list_canonical(MERCHANT_A.merchant_id, "STRIPE")) == 2
+    assert transport.calls[0]["created"]["gte"] == int((first_completed_at - timedelta(minutes=5)).timestamp())
+
+
 def test_invalid_webhook_signature_is_rejected() -> None:
     service, _, _, _, _ = provider_context()
     payload = json.dumps({"id": "evt_invalid", "type": "payment_intent.succeeded"}).encode()
@@ -369,6 +387,27 @@ def test_webhook_endpoint_rejects_invalid_signature() -> None:
     )
     assert response.status_code == 400
     assert response.json()["error"]["code"] == "INVALID_WEBHOOK_SIGNATURE"
+
+
+def test_webhook_endpoint_durably_queues_once_and_deduplicates_retries() -> None:
+    service, _, _, _, _ = provider_context()
+    queue = InMemoryJobQueue()
+    app = create_app(provider_service=service, authenticator=StaticAuthenticator(MERCHANT_A))
+    app.state.job_service = JobService(InMemoryPilotRepository(), queue)
+    client = TestClient(app)
+    event = {
+        "id": "evt_queued_once", "object": "event", "account": "acct_sandbox_merchant_a",
+        "type": "payment_intent.succeeded", "data": {"object": stripe_intent("pi_queued_once")},
+    }
+    payload = json.dumps(event, separators=(",", ":")).encode()
+    headers = {"Stripe-Signature": stripe_signature(payload)}
+
+    first = client.post("/webhooks/stripe", content=payload, headers=headers)
+    second = client.post("/webhooks/stripe", content=payload, headers=headers)
+
+    assert first.status_code == 200 and first.json()["status"] == "queued"
+    assert second.status_code == 200 and second.json()["status"] == "duplicate"
+    assert len(queue.messages) == 1
 
 
 def test_reconciliation_detects_repairs_and_duplicates() -> None:

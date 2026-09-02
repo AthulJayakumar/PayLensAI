@@ -13,6 +13,7 @@ import {
   syncStripe,
   SyncJob,
   JobResponse,
+  PayLensApiError,
   waitForJob,
 } from "../lib/api";
 
@@ -26,6 +27,13 @@ type Props = {
   disconnector?: () => Promise<void>;
 };
 
+function providerFailure(cause: unknown, fallback: string) {
+  return {
+    message: cause instanceof Error ? cause.message : fallback,
+    sessionExpired: cause instanceof PayLensApiError && cause.code === "SESSION_EXPIRED",
+  };
+}
+
 export function ProviderConnections({
   loader = fetchProviders,
   oauthConnector = beginStripeConnection,
@@ -38,13 +46,18 @@ export function ProviderConnections({
   const [syncJob, setSyncJob] = useState<SyncJob | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [sessionExpired, setSessionExpired] = useState(false);
 
   async function refresh() {
+    setError(""); setSessionExpired(false);
     try {
       const result = await loader();
-      setStripe(result.providers.find((item) => item.provider === "STRIPE") ?? null);
+      const provider = result.providers.find((item) => item.provider === "STRIPE");
+      if (!provider) throw new Error("Stripe provider status was not returned.");
+      setStripe(provider);
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Provider status is unavailable.");
+      const failure = providerFailure(cause, "Provider status is unavailable.");
+      setSessionExpired(failure.sessionExpired); setError(failure.message);
     }
   }
 
@@ -53,10 +66,15 @@ export function ProviderConnections({
     let active = true;
     loader()
       .then((result) => {
-        if (active) setStripe(result.providers.find((item) => item.provider === "STRIPE") ?? null);
+        const provider = result.providers.find((item) => item.provider === "STRIPE");
+        if (!provider) throw new Error("Stripe provider status was not returned.");
+        if (active) setStripe(provider);
       })
       .catch((cause) => {
-        if (active) setError(cause instanceof Error ? cause.message : "Provider status is unavailable.");
+        if (active) {
+          const failure = providerFailure(cause, "Provider status is unavailable.");
+          setSessionExpired(failure.sessionExpired); setError(failure.message);
+        }
       });
     return () => { active = false; };
   }, [loader]);
@@ -73,7 +91,8 @@ export function ProviderConnections({
         window.location.assign(result.authorization_url);
       }
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Stripe connection could not start.");
+      const failure = providerFailure(cause, "Stripe connection could not start.");
+      setSessionExpired(failure.sessionExpired); setError(failure.message);
       setBusy(false);
     }
   }
@@ -93,7 +112,8 @@ export function ProviderConnections({
       } else setSyncJob(result.sync_job);
       await refresh();
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Stripe synchronization failed.");
+      const failure = providerFailure(cause, "Stripe synchronization failed.");
+      setSessionExpired(failure.sessionExpired); setError(failure.message);
     } finally { setBusy(false); }
   }
 
@@ -104,10 +124,18 @@ export function ProviderConnections({
       setSyncJob(null);
       await refresh();
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Stripe could not be disconnected.");
+      const failure = providerFailure(cause, "Stripe could not be disconnected.");
+      setSessionExpired(failure.sessionExpired); setError(failure.message);
     } finally { setBusy(false); }
   }
 
+  if (!stripe && error) return <section className="provider-loading provider-error" role="alert">
+    <strong>{sessionExpired ? "Session expired" : "Provider status unavailable"}</strong>
+    <p>{error}</p>
+    {sessionExpired
+      ? <a className="primary-button compact" href="/login?reason=session-expired">Sign in again</a>
+      : <button className="primary-button compact" onClick={refresh}>Retry</button>}
+  </section>;
   if (!stripe) return <div className="provider-loading">Loading provider status…</div>;
   const connected = stripe.status === "CONNECTED";
   return (
@@ -143,7 +171,10 @@ export function ProviderConnections({
           {!stripe.configured && <small>Configure private Stripe sandbox credentials in the backend to enable connection.</small>}
         </div>
       )}
-      {error && <div className="error-banner" role="alert">{error}</div>}
+      {error && <div className="error-banner" role="alert">
+        {error}
+        {sessionExpired && <a className="text-link auth-error-link" href="/login?reason=session-expired">Sign in again</a>}
+      </div>}
     </section>
   );
 }

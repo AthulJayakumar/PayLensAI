@@ -6,6 +6,8 @@ import { InsightDetailView } from "../components/InsightDetailView";
 import { InsightsFeed } from "../components/InsightsFeed";
 import { UploadPanel } from "../components/UploadPanel";
 import { ProviderConnections } from "../components/ProviderConnections";
+import LoginPage from "../app/login/page";
+import { PayLensApiError } from "../lib/api";
 import type { AnalysisSummary, Insight, InsightDetailResponse, KpiResponse, SegmentsResponse } from "../lib/api";
 
 const summary: AnalysisSummary = {
@@ -214,4 +216,44 @@ it("shows processed counts returned by an asynchronous Stripe sync job", async (
   await user.click(await screen.findByRole("button", { name: "Sync now" }));
   expect(await screen.findByText("4,743 transactions normalised")).toBeInTheDocument();
   expect(jobWaiter).toHaveBeenCalledWith("job_1");
+});
+
+it("replaces the provider loading state with a session-expired action", async () => {
+  render(<ProviderConnections loader={vi.fn().mockRejectedValue(
+    new PayLensApiError("SESSION_EXPIRED", "Your session expired. Sign in again to continue.")
+  )}/>);
+
+  expect(await screen.findByText("Session expired")).toBeInTheDocument();
+  expect(screen.queryByText("Loading provider status…")).not.toBeInTheDocument();
+  expect(screen.getByRole("link", { name: "Sign in again" })).toHaveAttribute("href", "/login?reason=session-expired");
+});
+
+it("completes the Cognito forgot-password flow without exposing the new password", async () => {
+  const requests: Array<{ target?: string; body?: string }> = [];
+  const fetchMock = vi.fn().mockImplementation(async (_url: string, options?: RequestInit) => {
+    requests.push({
+      target: (options?.headers as Record<string, string> | undefined)?.["X-Amz-Target"],
+      body: options?.body as string | undefined,
+    });
+    if (!options) return { ok: true, json: async () => ({ region: "eu-north-1", client_id: "client_test" }) };
+    return { ok: true, json: async () => ({}) };
+  });
+  vi.stubGlobal("fetch", fetchMock);
+  const user = userEvent.setup();
+  render(<LoginPage/>);
+
+  await user.click(screen.getByRole("button", { name: "Forgot password?" }));
+  await user.type(screen.getByLabelText("Email"), "merchant@example.com");
+  await user.click(screen.getByRole("button", { name: "Send verification code" }));
+  expect(await screen.findByRole("heading", { name: "Choose a new password" })).toBeInTheDocument();
+
+  await user.type(screen.getByLabelText("Verification code"), "123456");
+  await user.type(screen.getByLabelText("New password"), "Safe-Test-Password-42!");
+  await user.type(screen.getByLabelText("Confirm new password"), "Safe-Test-Password-42!");
+  await user.click(screen.getByRole("button", { name: "Reset password" }));
+
+  expect(await screen.findByText("Password reset complete. Sign in with your new password.")).toBeInTheDocument();
+  expect(requests.some((request) => request.target?.endsWith("ForgotPassword"))).toBe(true);
+  expect(requests.some((request) => request.target?.endsWith("ConfirmForgotPassword"))).toBe(true);
+  vi.unstubAllGlobals();
 });

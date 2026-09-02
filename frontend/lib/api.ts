@@ -125,6 +125,10 @@ async function parseResponse<T>(response: Response): Promise<T> {
   // Convert the API's stable error envelope into one exception shape for all UI callers.
   const body = await response.json();
   if (!response.ok) {
+    if (response.status === 401 && typeof window !== "undefined") {
+      window.sessionStorage.removeItem("paylens_access_token");
+      throw new PayLensApiError("SESSION_EXPIRED", "Your session expired. Sign in again to continue.");
+    }
     throw new PayLensApiError(body?.error?.code ?? "API_ERROR", body?.error?.message ?? "PayLens request failed.");
   }
   return body as T;

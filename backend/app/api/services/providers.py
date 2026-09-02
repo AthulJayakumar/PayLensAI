@@ -201,11 +201,26 @@ class ProviderService:
         self._audit(merchant.merchant_id, "SYNC_STARTED", job.id, actor_id=merchant.actor_id)
         credentials = self._credentials(connection)
         cursor = job.cursor
+        # Completed follow-up syncs request only recent Stripe objects. The
+        # overlap prevents boundary races; canonical upserts make it idempotent.
+        # Resumed partial jobs retain their exact cursor and original window.
+        incremental_since = (
+            connection.last_sync_at - timedelta(minutes=5)
+            if not resume_job_id and connection.last_sync_at
+            else None
+        )
         try:
             while True:
-                page = connector.sync_historical(access_token=credentials.access_token, starting_after=cursor)
+                page = connector.sync_historical(
+                    access_token=credentials.access_token,
+                    starting_after=cursor,
+                    created_after=incremental_since,
+                )
                 for payload in page.objects:
-                    raw = self._raw(merchant.merchant_id, "payment_intent", payload, "HISTORICAL_SYNC")
+                    raw = self._raw(
+                        merchant.merchant_id, "payment_intent", payload,
+                        "INCREMENTAL_SYNC" if incremental_since else "HISTORICAL_SYNC",
+                    )
                     raw_id = self.raw_store.put(raw)
                     transaction = self.normalizer.normalize(payload, merchant_id=merchant.merchant_id, raw_reference=raw_id, source=SourceType.API)
                     self.repository.upsert_canonical(transaction)
@@ -230,7 +245,8 @@ class ProviderService:
                 "transactions_imported": len(transactions),
             }))
             self._audit(merchant.merchant_id, "SYNC_COMPLETED", job.id, actor_id=merchant.actor_id,
-                        metadata={"records_normalised": job.records_normalised, "analysis_id": job.analysis_id})
+                        metadata={"records_normalised": job.records_normalised, "analysis_id": job.analysis_id,
+                                  "sync_mode": "incremental" if incremental_since else "historical"})
             return job
         except APIError:
             raise

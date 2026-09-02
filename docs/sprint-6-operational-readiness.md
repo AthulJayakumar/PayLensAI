@@ -39,7 +39,9 @@ Run the read-only readiness check after deployment:
 
 It checks public health, RDS availability/encryption/deletion protection,
 backup retention and the latest restorable time, plus the webhook DLQ count.
-It does not create or delete infrastructure.
+It does not create or delete infrastructure. The protected deployment workflow
+runs the same check with its short-lived GitHub OIDC session after every smoke
+test, so local AWS credentials are not required for deployment verification.
 
 A true restore drill still requires restoring a new temporary RDS instance,
 running read-only application checks, and then deliberately removing that

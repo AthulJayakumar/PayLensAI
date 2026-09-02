@@ -46,3 +46,6 @@ jobs:
       - name: Force services and smoke test
         shell: bash
         run: bash scripts/smoke-aws.sh pilot
+      - name: Verify backups and webhook recovery state
+        shell: pwsh
+        run: ./scripts/verify-pilot-readiness.ps1 -Environment pilot -Region eu-north-1

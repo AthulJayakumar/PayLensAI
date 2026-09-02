@@ -129,7 +129,36 @@ it("renders Stripe as unavailable until sandbox configuration exists", async () 
   render(<ProviderConnections loader={vi.fn().mockResolvedValue({ providers: [{ provider: "STRIPE", status: "NOT_CONNECTED", configured: false }] })} />);
   expect(await screen.findByText("Not connected")).toBeInTheDocument();
   expect(screen.getByRole("button", { name: "Connect Stripe" })).toBeDisabled();
-  expect(screen.getByText(/Configure Stripe App sandbox variables/)).toBeInTheDocument();
+  expect(screen.getByText(/Configure private Stripe sandbox credentials/)).toBeInTheDocument();
+});
+
+it("connects a server-configured private Stripe sandbox without exposing its key", async () => {
+  const disconnected = {
+    provider: "STRIPE" as const,
+    status: "NOT_CONNECTED" as const,
+    configured: true,
+    connection_mode: "SANDBOX_KEY" as const,
+  };
+  const connected = {
+    ...disconnected,
+    status: "CONNECTED" as const,
+    provider_account_id: "acct_sandbox_test",
+    webhook_status: "NOT_CONFIGURED",
+  };
+  const sandboxConnector = vi.fn().mockResolvedValue({ connection: connected });
+  const user = userEvent.setup();
+
+  render(
+    <ProviderConnections
+      loader={vi.fn().mockResolvedValue({ providers: [disconnected] })}
+      sandboxConnector={sandboxConnector}
+    />
+  );
+
+  await user.click(await screen.findByRole("button", { name: "Connect Stripe sandbox" }));
+  expect(sandboxConnector).toHaveBeenCalledOnce();
+  expect(await screen.findByText("Connected")).toBeInTheDocument();
+  expect(screen.getByText("acct_sandbox_test")).toBeInTheDocument();
 });
 
 it("syncs a connected Stripe account and links to its analysis", async () => {

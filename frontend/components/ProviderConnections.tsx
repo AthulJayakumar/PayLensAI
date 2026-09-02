@@ -5,6 +5,7 @@
 import { useEffect, useState } from "react";
 import {
   beginStripeConnection,
+  connectStripeSandbox,
   disconnectStripe,
   fetchProviders,
   ProviderConnection,
@@ -18,14 +19,16 @@ import {
 type Props = {
   // Injectable operations keep the component deterministic in tests.
   loader?: () => Promise<ProviderStatusResponse>;
-  connector?: () => Promise<{ authorization_url: string }>;
+  oauthConnector?: () => Promise<{ authorization_url: string }>;
+  sandboxConnector?: () => Promise<{ connection: ProviderConnection }>;
   synchronizer?: () => Promise<{ sync_job: SyncJob } | JobResponse>;
   disconnector?: () => Promise<void>;
 };
 
 export function ProviderConnections({
   loader = fetchProviders,
-  connector = beginStripeConnection,
+  oauthConnector = beginStripeConnection,
+  sandboxConnector = connectStripeSandbox,
   synchronizer = syncStripe,
   disconnector = disconnectStripe,
 }: Props) {
@@ -59,8 +62,14 @@ export function ProviderConnections({
   async function connect() {
     setBusy(true); setError("");
     try {
-      const result = await connector();
-      window.location.assign(result.authorization_url);
+      if (stripe?.connection_mode === "SANDBOX_KEY") {
+        const result = await sandboxConnector();
+        setStripe(result.connection);
+        setBusy(false);
+      } else {
+        const result = await oauthConnector();
+        window.location.assign(result.authorization_url);
+      }
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Stripe connection could not start.");
       setBusy(false);
@@ -121,11 +130,13 @@ export function ProviderConnections({
         </div>
       ) : (
         <div className="provider-connect-copy">
-          <p>Authorize PayLens through Stripe’s hosted install flow. PayLens never receives your Stripe password.</p>
+          <p>{stripe.connection_mode === "SANDBOX_KEY"
+            ? "Connect the private Stripe sandbox configured by your PayLens administrator. The restricted test key never enters this browser."
+            : "Authorize PayLens through Stripe’s hosted install flow. PayLens never receives your Stripe password."}</p>
           <button className="primary-button compact" onClick={connect} disabled={busy || !stripe.configured}>
-            {busy ? "Opening Stripe…" : "Connect Stripe"}
+            {busy ? "Connecting Stripe…" : stripe.connection_mode === "SANDBOX_KEY" ? "Connect Stripe sandbox" : "Connect Stripe"}
           </button>
-          {!stripe.configured && <small>Configure Stripe App sandbox variables in the backend to enable connection.</small>}
+          {!stripe.configured && <small>Configure private Stripe sandbox credentials in the backend to enable connection.</small>}
         </div>
       )}
       {error && <div className="error-banner" role="alert">{error}</div>}

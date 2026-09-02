@@ -111,15 +111,29 @@ def create_app(
         state_secret = os.environ.get("PAYLENS_OAUTH_STATE_SECRET") or secrets.token_urlsafe(48)
         client_id = os.environ.get("STRIPE_APP_CLIENT_ID")
         developer_key = os.environ.get("STRIPE_APP_DEVELOPER_API_KEY")
+        sandbox_key = os.environ.get("STRIPE_SANDBOX_API_KEY")
+        sandbox_account_id = os.environ.get("STRIPE_SANDBOX_ACCOUNT_ID")
         if client_id == "NOT_CONFIGURED": client_id = None
         if developer_key == "NOT_CONFIGURED": developer_key = None
+        if sandbox_key == "NOT_CONFIGURED": sandbox_key = None
+        if sandbox_account_id == "NOT_CONFIGURED": sandbox_account_id = None
         webhook_secret = os.environ.get("STRIPE_WEBHOOK_SECRET")
         if webhook_secret == "NOT_CONFIGURED": webhook_secret = None
-        connector = (
-            StripeConnector(client_id=client_id, developer_api_key=developer_key)
-            if client_id and developer_key
-            else None
-        )
+        stripe_mode = os.environ.get("STRIPE_CONNECTION_MODE", "AUTO").upper()
+        if stripe_mode == "SANDBOX_KEY" or (
+            stripe_mode == "AUTO" and sandbox_key and sandbox_account_id
+        ):
+            connector = (
+                StripeConnector(sandbox_api_key=sandbox_key, sandbox_account_id=sandbox_account_id)
+                if sandbox_key and sandbox_account_id
+                else None
+            )
+        else:
+            connector = (
+                StripeConnector(client_id=client_id, developer_api_key=developer_key)
+                if client_id and developer_key
+                else None
+            )
         provider_service = ProviderService(
             connector=connector,
             repository=provider_repository,

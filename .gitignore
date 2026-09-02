@@ -7,7 +7,10 @@ __pycache__/
 .venv/
 venv/
 .test-deps/
+.test-runtime/
+.test-output-*/
 .npm-cache/
+.pnpm-store/
 node_modules/
 infrastructure/cdk.out/
 .env

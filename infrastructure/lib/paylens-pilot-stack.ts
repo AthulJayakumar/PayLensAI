@@ -28,6 +28,10 @@ export class PayLensPilotStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props: Props) {
     super(scope, id, props);
     const prefix = `paylens-${props.environment}`;
+    const stripeConnectionMode = this.node.tryGetContext("stripeConnectionMode") ?? "SANDBOX_KEY";
+    if (!["SANDBOX_KEY", "OAUTH"].includes(stripeConnectionMode)) {
+      throw new Error("stripeConnectionMode must be SANDBOX_KEY or OAUTH");
+    }
     const budgetEmail = new cdk.CfnParameter(this, "BudgetAlertEmail", { type: "String", description: "Verified operator email for cost and operational alerts" });
     const originVerify = new cdk.CfnParameter(this, "OriginVerifyHeader", { type: "String", noEcho: true, minLength: 32, description: "Random value CloudFront sends to the ALB" });
 
@@ -112,7 +116,7 @@ export class PayLensPilotStack extends cdk.Stack {
       PAYLENS_RAW_BUCKET: rawBucket.bucketName, PAYLENS_RAW_KMS_KEY_ID: dataKey.keyArn,
       PAYLENS_PROVIDER_SYNC_QUEUE_URL: providerSync.queue.queueUrl, PAYLENS_ANALYSIS_QUEUE_URL: analysis.queue.queueUrl,
       PAYLENS_WEBHOOK_QUEUE_URL: webhook.queue.queueUrl, COGNITO_USER_POOL_ID: userPool.userPoolId,
-      COGNITO_CLIENT_ID: userPoolClient.userPoolClientId,
+      COGNITO_CLIENT_ID: userPoolClient.userPoolClientId, STRIPE_CONNECTION_MODE: stripeConnectionMode,
     };
     const commonSecrets = {
       DB_HOST: ecs.Secret.fromSecretsManager(database.secret!, "host"), DB_USERNAME: ecs.Secret.fromSecretsManager(database.secret!, "username"),
@@ -121,6 +125,8 @@ export class PayLensPilotStack extends cdk.Stack {
       PAYLENS_OAUTH_STATE_SECRET: ecs.Secret.fromSecretsManager(appSecret, "master"),
       STRIPE_APP_CLIENT_ID: ecs.Secret.fromSecretsManager(stripeSecret, "appClientId"),
       STRIPE_APP_DEVELOPER_API_KEY: ecs.Secret.fromSecretsManager(stripeSecret, "developerApiKey"),
+      STRIPE_SANDBOX_API_KEY: ecs.Secret.fromSecretsManager(stripeSecret, "sandboxApiKey"),
+      STRIPE_SANDBOX_ACCOUNT_ID: ecs.Secret.fromSecretsManager(stripeSecret, "sandboxAccountId"),
       STRIPE_WEBHOOK_SECRET: ecs.Secret.fromSecretsManager(stripeSecret, "webhookSecret"),
     };
     const apiContainer = apiTask.addContainer("api", { image: backendImage, environment: commonEnvironment, secrets: commonSecrets,

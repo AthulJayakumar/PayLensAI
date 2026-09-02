@@ -25,6 +25,16 @@ The sandbox app should request only `payment_intent_read`, `charge_read`,
 `dispute_read`, and `balance_transaction_source_read`. Stripe-hosted installation
 collects consent. PayLens never collects a Stripe password.
 
+For the current single-account pilot, PayLens also supports a private
+`SANDBOX_KEY` mode. This mode verifies a restricted `rk_test_` key against an
+explicit sandbox account ID, encrypts the key in the existing credential vault,
+and uses the same sync, normalization, webhook, and analytics pipeline. Live
+keys are rejected. This is a temporary test path while Stripe external OAuth
+testing requires business verification; OAuth remains the multi-merchant design.
+The restricted key grants read access to Accounts (ownership verification),
+Payment Intents, Charges and Refunds, Payment Disputes, and Balance Transaction
+Sources. All other resources remain `None`; no write permission is granted.
+
 ## Authorization and security
 
 1. An authenticated local merchant requests `POST /providers/stripe/authorize`.
@@ -141,17 +151,23 @@ the same raw-store and normalizer path. It supplements webhook delivery.
    alembic upgrade head
    ```
 
-3. In Stripe test/sandbox mode, create a public Stripe App with OAuth API
+3. For the private pilot, set `STRIPE_CONNECTION_MODE=SANDBOX_KEY`,
+   `STRIPE_SANDBOX_API_KEY` to a least-privilege restricted test key, and
+   `STRIPE_SANDBOX_ACCOUNT_ID` to its exact `acct_...` account. Do not put the
+   key in frontend configuration.
+
+4. For future external testing, create a public Stripe App with OAuth API
    access. Add the four read permissions above and this exact redirect:
    `http://localhost:8000/providers/stripe/oauth/callback`.
 
-4. Configure the listed PaymentIntent, charge/refund and dispute events for
+5. Configure the listed PaymentIntent, charge/refund and dispute events for
    `http://localhost:8000/webhooks/stripe`; use Stripe CLI forwarding locally.
    Copy only the client ID, app developer test key, and webhook signing secret
    into local environment values.
 
-5. Start the backend and frontend, open `http://localhost:3000/providers`,
-   choose **Connect Stripe**, then **Sync now**.
+6. Start the backend and frontend, open `http://localhost:3000/providers`,
+   choose **Connect Stripe sandbox** (or **Connect Stripe** in OAuth mode), then
+   **Sync now**.
 
 Automated tests mock Stripe and require no credentials. No Stripe credentials
 were available during Sprint 4, so a live sandbox authorization/API call was not
@@ -162,6 +178,8 @@ performed.
 - Development auth is a local API key abstraction, not user login/membership.
 - Sync and reconciliation are synchronous prototype operations.
 - One Stripe connection exists per merchant; one webhook secret is shared.
+- Private sandbox-key mode is deliberately single-account and is not a
+  substitute for merchant OAuth consent.
 - Raw JSONB has no retention lifecycle; S3 is deferred.
 - Disconnect deletes local encrypted credentials but does not yet revoke the
   grant at Stripe.

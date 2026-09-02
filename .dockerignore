@@ -1,5 +1,7 @@
 .git
 .test-deps
+.test-runtime
+.test-output-*
 .pytest*
 frontend
 synthetic-data

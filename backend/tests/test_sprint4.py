@@ -77,6 +77,7 @@ class FakeStripeTransport(StripeTransport):
     def __init__(self, pages: dict[str | None, dict] | None = None) -> None:
         self.pages = pages or {None: {"data": [stripe_intent("pi_1")], "has_more": False}}
         self.calls: list[dict] = []
+        self.access_tokens: list[str] = []
         self.fail_cursor: str | None = None
         self.fail_once = False
         self.retrieve_payload = stripe_intent("pi_1")
@@ -92,6 +93,7 @@ class FakeStripeTransport(StripeTransport):
         }
 
     def list_payment_intents(self, access_token: str, params: dict) -> dict:
+        self.access_tokens.append(access_token)
         self.calls.append(params)
         cursor = params.get("starting_after")
         if self.fail_once and cursor == self.fail_cursor:
@@ -101,6 +103,9 @@ class FakeStripeTransport(StripeTransport):
 
     def retrieve_payment_intent(self, access_token: str, transaction_id: str) -> dict:
         return self.retrieve_payload
+
+    def retrieve_account(self, access_token: str) -> dict:
+        return {"id": "acct_sandbox_merchant_a"}
 
 
 def provider_context(
@@ -168,6 +173,73 @@ def test_stripe_apps_oauth_url_and_one_time_state() -> None:
     assert service.state_manager.consume(state) == MERCHANT_A.merchant_id
     with pytest.raises(ValueError, match="already used"):
         service.state_manager.consume(state)
+
+
+def test_private_sandbox_connection_verifies_and_encrypts_restricted_key() -> None:
+    transport = FakeStripeTransport()
+    connector = StripeConnector(
+        sandbox_api_key="rk_test_paylens_private",
+        sandbox_account_id="acct_sandbox_merchant_a",
+        transport=transport,
+    )
+    repository = InMemoryProviderRepository()
+    vault = CredentialVault(CredentialCipher(Fernet.generate_key().decode()), repository)
+    service = ProviderService(
+        connector=connector,
+        repository=repository,
+        raw_store=InMemoryRawProviderDataStore(),
+        credential_vault=vault,
+        state_manager=OAuthStateManager(STATE_SECRET, repository),
+        analysis_service=AnalysisService(InMemoryAnalysisRepository()),
+        redirect_uri="http://localhost:8000/providers/stripe/oauth/callback",
+        webhook_secret=WEBHOOK_SECRET,
+    )
+
+    client = TestClient(create_app(provider_service=service, authenticator=StaticAuthenticator(MERCHANT_A)))
+    response = client.post("/providers/stripe/connect-sandbox")
+
+    assert response.status_code == 200
+    assert response.json()["connection"]["connection_mode"] == "SANDBOX_KEY"
+    connection = service.status(MERCHANT_A.merchant_id)
+    assert connection is not None
+    assert connection.provider_account_id == "acct_sandbox_merchant_a"
+    stored = repository.get_encrypted_credentials(connection.id)
+    assert stored is not None and "rk_test_paylens_private" not in stored[0]
+    assert vault.load(connection.id) == ("rk_test_paylens_private", None)
+    status_response = client.get("/providers").json()["providers"][0]
+    assert status_response["configured"] is True
+    assert status_response["connection_mode"] == "SANDBOX_KEY"
+    sync_job = service.sync(MERCHANT_A)
+    assert sync_job.status == SyncStatus.COMPLETED
+    assert transport.access_tokens == ["rk_test_paylens_private"]
+    standalone_event = {
+        "id": "evt_private_sandbox",
+        "object": "event",
+        "type": "payment_intent.succeeded",
+        "data": {"object": stripe_intent("pi_private_webhook")},
+    }
+    payload = json.dumps(standalone_event, separators=(",", ":")).encode()
+    assert service.process_webhook(payload, stripe_signature(payload))["status"] == "processed"
+    oauth_response = client.post("/providers/stripe/authorize")
+    assert oauth_response.status_code == 409
+    assert oauth_response.json()["error"]["code"] == "STRIPE_OAUTH_DISABLED"
+
+
+def test_private_sandbox_connection_rejects_wrong_account() -> None:
+    transport = FakeStripeTransport()
+    connector = StripeConnector(
+        sandbox_api_key="rk_test_paylens_private",
+        sandbox_account_id="acct_different",
+        transport=transport,
+    )
+    with pytest.raises(ValueError, match="does not belong"):
+        connector.verify_sandbox_credentials()
+
+
+@pytest.mark.parametrize("api_key", ["rk_live_forbidden", "sk_test_too_broad"])
+def test_private_sandbox_connector_rejects_live_or_unrestricted_keys(api_key: str) -> None:
+    with pytest.raises(ValueError, match="restricted test key"):
+        StripeConnector(sandbox_api_key=api_key, sandbox_account_id="acct_live")
 
 
 def test_credentials_are_encrypted_before_storage() -> None:

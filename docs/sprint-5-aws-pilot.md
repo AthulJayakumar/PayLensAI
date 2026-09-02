@@ -169,22 +169,32 @@ waits, and HTTP smoke tests. Configure environment secrets:
 The deployed Stripe secret is deliberately initialized to `NOT_CONFIGURED`.
 Before a merchant pilot:
 
-1. Create a Stripe App test/sandbox client and set its redirect URL to
-   `https://<CloudFront-domain>/api/providers/stripe/oauth/callback`.
+1. Create a least-privilege restricted key in the intended Stripe sandbox. It
+   must be an `rk_test_` key; PayLens rejects live keys. Record the exact
+   sandbox `acct_...` ID. Grant read-only access to Accounts, Payment Intents,
+   Charges and Refunds, Payment Disputes, and Balance Transaction Sources only.
 2. Create a Stripe test webhook endpoint at
    `https://<CloudFront-domain>/api/webhooks/stripe` for PaymentIntent, refund,
    and dispute events.
-3. Update the `paylens-pilot/stripe` secret JSON keys `appClientId`,
-   `developerApiKey`, and `webhookSecret`; force new API/worker deployments.
-4. Sign in as the test merchant, authorize Stripe, and confirm encrypted token
+3. Update the `paylens-pilot/stripe` secret JSON keys `sandboxApiKey`,
+   `sandboxAccountId`, and `webhookSecret`; force new API/worker deployments.
+   CDK defaults `STRIPE_CONNECTION_MODE` to `SANDBOX_KEY` for this private pilot.
+4. Sign in as the test merchant, connect the Stripe sandbox, and confirm encrypted key
    ciphertext in RDS without printing it.
 5. Start sync. Confirm API returns `QUEUED`; observe RUNNING/COMPLETED, canonical
    rows, S3 raw objects, analysis/insights, and dashboard values.
 6. Use Stripe CLI test-mode fixtures/events. Confirm public webhook returns
    quickly, signature failures are 400, processing is queued, canonical state
    updates, and replaying the same event reports duplicate with one DB event/job.
-7. Disconnect. Confirm provider deauthorization is attempted, local credentials
-   are removed even if Stripe returns an error, and `STRIPE_DISCONNECTED` audit exists.
+7. Disconnect. Confirm local credentials are removed and a
+   `STRIPE_DISCONNECTED` audit exists. Restricted-key revocation remains an
+   operator action in Stripe.
+
+External merchant OAuth remains implemented but blocked until Stripe business
+verification enables external testing. At that point, create the public Stripe
+App redirect, populate `appClientId` and `developerApiKey`, switch
+the CDK context to `-c stripeConnectionMode=OAUTH`, redeploy, and run the OAuth
+consent tests.
 
 No Stripe credentials were available during implementation, so this gate is
 not claimed as executed.

@@ -38,7 +38,11 @@ def provider_status(
 ) -> dict:
     """Describe Stripe configuration and connection state for this merchant."""
     connection = service.status(merchant.merchant_id)
-    return {"providers": [{**connection_payload(connection), "configured": service.connector is not None}]}
+    return {"providers": [{
+        **connection_payload(connection),
+        "configured": service.connector is not None,
+        "connection_mode": service.connector.connection_mode if service.connector is not None else None,
+    }]}
 
 
 @router.post("/stripe/authorize")
@@ -48,6 +52,16 @@ def authorize_stripe(
 ) -> dict:
     """Issue protected OAuth state and return Stripe's authorization URL."""
     return {"authorization_url": service.authorization_url(merchant.merchant_id)}
+
+
+@router.post("/stripe/connect-sandbox")
+def connect_stripe_sandbox(
+    merchant: AuthenticatedMerchant = Depends(require_roles(MerchantRole.OWNER, MerchantRole.ADMIN)),
+    service: ProviderService = Depends(get_provider_service),
+) -> dict:
+    """Bind the configured private Stripe sandbox to the pilot merchant."""
+    connection = service.connect_sandbox(merchant.merchant_id, actor_id=merchant.actor_id)
+    return {"connection": {**connection.model_dump(mode="json"), "configured": True, "connection_mode": "SANDBOX_KEY"}}
 
 
 @router.get("/stripe/oauth/callback")

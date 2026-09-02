@@ -70,8 +70,60 @@ class ProviderService:
 
     def authorization_url(self, merchant_id: str) -> str:
         connector = self._configured_connector()
+        if connector.connection_mode != "OAUTH":
+            raise APIError(
+                status_code=409,
+                code="STRIPE_OAUTH_DISABLED",
+                message="This PayLens environment uses a private Stripe sandbox connection.",
+            )
         state = self.state_manager.issue(merchant_id)
         return connector.authorize(state=state, redirect_uri=self.redirect_uri)
+
+    def connect_sandbox(self, merchant_id: str, *, actor_id: str | None = None) -> ProviderConnection:
+        """Verify and encrypt the server-held key for this pilot merchant."""
+        connector = self._configured_connector()
+        if connector.connection_mode != "SANDBOX_KEY":
+            raise APIError(
+                status_code=409,
+                code="STRIPE_SANDBOX_KEY_DISABLED",
+                message="This PayLens environment uses Stripe App OAuth.",
+            )
+        try:
+            credentials = connector.verify_sandbox_credentials()
+        except Exception as error:
+            raise APIError(
+                status_code=502,
+                code="STRIPE_SANDBOX_CONNECTION_FAILED",
+                message="Stripe did not accept the configured sandbox credential.",
+            ) from error
+        claimed = self.repository.find_connection_by_account("STRIPE", credentials.provider_account_id)
+        if claimed is not None and claimed.merchant_id != merchant_id:
+            raise APIError(
+                status_code=409,
+                code="STRIPE_SANDBOX_ALREADY_CONNECTED",
+                message="This Stripe sandbox is already assigned to another PayLens merchant.",
+            )
+        now = datetime.now(timezone.utc)
+        existing = self.repository.get_connection(merchant_id, "STRIPE")
+        connection = ProviderConnection(
+            id=existing.id if existing else _id("connection"),
+            merchant_id=merchant_id,
+            provider="STRIPE",
+            status=ConnectionStatus.CONNECTED,
+            provider_account_id=credentials.provider_account_id,
+            token_expires_at=None,
+            scope=credentials.scope,
+            livemode=False,
+            created_at=existing.created_at if existing else now,
+            updated_at=now,
+            last_sync_at=existing.last_sync_at if existing else None,
+            transactions_imported=existing.transactions_imported if existing else 0,
+            webhook_status="CONFIGURED" if self.webhook_secret else "NOT_CONFIGURED",
+        )
+        self.repository.save_connection(connection)
+        self.credential_vault.save(connection.id, credentials.access_token, None)
+        self._audit(merchant_id, "STRIPE_SANDBOX_CONNECTED", connection.id, actor_id=actor_id)
+        return connection
 
     def complete_authorization(self, *, code: str, state: str) -> ProviderConnection:
         """Consume OAuth state, exchange code, encrypt tokens, and save connection."""
@@ -218,7 +270,10 @@ class ProviderService:
 
     def accept_verified_webhook(self, event: dict) -> dict:
         """Preserve and deduplicate a signature-verified event before queueing."""
-        connection = self.repository.find_connection_by_account("STRIPE", event.get("account", ""))
+        account_id = event.get("account")
+        if not account_id and self.connector is not None and self.connector.connection_mode == "SANDBOX_KEY":
+            account_id = self.connector.sandbox_account_id
+        connection = self.repository.find_connection_by_account("STRIPE", account_id or "")
         if connection is None:
             raise APIError(status_code=404, code="STRIPE_CONNECTION_NOT_FOUND", message="No merchant connection matches this Stripe event.")
         raw = self._raw(connection.merchant_id, "event", event, "WEBHOOK")
@@ -229,7 +284,10 @@ class ProviderService:
 
     def process_verified_webhook(self, event: dict, *, already_recorded: bool = False) -> dict:
         """Normalize the event's transaction update after durable acceptance."""
-        connection = self.repository.find_connection_by_account("STRIPE", event.get("account", ""))
+        account_id = event.get("account")
+        if not account_id and self.connector is not None and self.connector.connection_mode == "SANDBOX_KEY":
+            account_id = self.connector.sandbox_account_id
+        connection = self.repository.find_connection_by_account("STRIPE", account_id or "")
         if connection is None:
             raise APIError(status_code=404, code="STRIPE_CONNECTION_NOT_FOUND", message="No merchant connection matches this Stripe event.")
         if not already_recorded:

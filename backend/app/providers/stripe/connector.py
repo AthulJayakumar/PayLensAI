@@ -35,6 +35,9 @@ class StripeTransport(ABC):
     def retrieve_charge(self, access_token: str, charge_id: str) -> dict:
         raise NotImplementedError
 
+    def retrieve_account(self, access_token: str) -> dict:
+        raise NotImplementedError
+
     def deauthorize(self, developer_api_key: str, client_id: str, stripe_user_id: str) -> dict:
         raise NotImplementedError
 
@@ -71,6 +74,10 @@ class OfficialStripeTransport(StripeTransport):
         )
         return _stripe_dict(item)
 
+    def retrieve_account(self, access_token: str) -> dict:
+        account = stripe.Account.retrieve(api_key=access_token)
+        return _stripe_dict(account)
+
     def deauthorize(self, developer_api_key: str, client_id: str, stripe_user_id: str) -> dict:
         response = httpx.post(
             "https://api.stripe.com/v1/oauth/deauthorize",
@@ -83,24 +90,35 @@ class OfficialStripeTransport(StripeTransport):
 
 
 class StripeConnector(PaymentProviderConnector):
-    """Stripe Apps OAuth and paginated PaymentIntent connector."""
+    """Stripe Apps OAuth or private test-key PaymentIntent connector."""
     provider = "STRIPE"
     authorization_endpoint = "https://marketplace.stripe.com/oauth/v2/authorize"
 
     def __init__(
         self,
         *,
-        client_id: str,
-        developer_api_key: str,
+        client_id: str | None = None,
+        developer_api_key: str | None = None,
+        sandbox_api_key: str | None = None,
+        sandbox_account_id: str | None = None,
         transport: StripeTransport | None = None,
     ) -> None:
-        if not client_id or not developer_api_key:
-            raise ValueError("Stripe App client ID and developer API key are required.")
+        oauth_configured = bool(client_id and developer_api_key)
+        sandbox_configured = bool(sandbox_api_key and sandbox_account_id)
+        if oauth_configured == sandbox_configured:
+            raise ValueError("Configure either Stripe App OAuth or one private sandbox key and account ID.")
+        if sandbox_api_key and not sandbox_api_key.startswith("rk_test_"):
+            raise ValueError("The private Stripe connector requires a restricted test key.")
         self.client_id = client_id
         self.developer_api_key = developer_api_key
+        self.sandbox_api_key = sandbox_api_key
+        self.sandbox_account_id = sandbox_account_id
+        self.connection_mode = "SANDBOX_KEY" if sandbox_configured else "OAUTH"
         self.transport = transport or OfficialStripeTransport()
 
     def authorize(self, *, state: str, redirect_uri: str) -> str:
+        if self.connection_mode != "OAUTH":
+            raise ValueError("OAuth authorization is unavailable in private sandbox mode.")
         return f"{self.authorization_endpoint}?{urlencode({'client_id': self.client_id, 'redirect_uri': redirect_uri, 'state': state})}"
 
     def _tokens(self, payload: dict) -> OAuthTokenResponse:
@@ -114,15 +132,35 @@ class StripeConnector(PaymentProviderConnector):
         )
 
     def exchange_authorization_code(self, code: str) -> OAuthTokenResponse:
+        if self.connection_mode != "OAUTH":
+            raise ValueError("OAuth token exchange is unavailable in private sandbox mode.")
         return self._tokens(self.transport.exchange_token(
             self.developer_api_key, {"code": code, "grant_type": "authorization_code"}
         ))
 
     def refresh_credentials(self, refresh_token: str) -> OAuthTokenResponse:
+        if self.connection_mode != "OAUTH":
+            raise ValueError("OAuth token refresh is unavailable in private sandbox mode.")
         return self._tokens(self.transport.exchange_token(
             self.developer_api_key,
             {"refresh_token": refresh_token, "grant_type": "refresh_token"},
         ))
+
+    def verify_sandbox_credentials(self) -> OAuthTokenResponse:
+        """Validate the server-held key and bind it to one expected test account."""
+        if self.connection_mode != "SANDBOX_KEY" or not self.sandbox_api_key or not self.sandbox_account_id:
+            raise ValueError("Private Stripe sandbox credentials are not configured.")
+        account = self.transport.retrieve_account(self.sandbox_api_key)
+        if account.get("id") != self.sandbox_account_id:
+            raise ValueError("The Stripe sandbox key does not belong to the configured account.")
+        return OAuthTokenResponse(
+            access_token=self.sandbox_api_key,
+            refresh_token=None,
+            expires_at=None,
+            provider_account_id=self.sandbox_account_id,
+            scope="restricted_test_key",
+            livemode=False,
+        )
 
     def sync_historical(
         self,
@@ -155,6 +193,8 @@ class StripeConnector(PaymentProviderConnector):
         return self.transport.retrieve_charge(access_token, charge_id)
 
     def revoke(self, stripe_user_id: str) -> bool:
+        if self.connection_mode != "OAUTH":
+            return False
         result = self.transport.deauthorize(self.developer_api_key, self.client_id, stripe_user_id)
         return result.get("stripe_user_id") == stripe_user_id
 

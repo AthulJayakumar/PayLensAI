@@ -84,6 +84,7 @@ export type ProviderConnection = {
   provider: "STRIPE";
   status: "NOT_CONNECTED" | "PENDING" | "CONNECTED" | "ERROR" | "DISCONNECTED";
   configured: boolean;
+  connection_mode?: "OAUTH" | "SANDBOX_KEY" | null;
   provider_account_id?: string | null;
   last_sync_at?: string | null;
   transactions_imported?: number;
@@ -169,6 +170,10 @@ export async function fetchProviders(): Promise<ProviderStatusResponse> {
 
 export async function beginStripeConnection(): Promise<{ authorization_url: string }> {
   return parseResponse(await fetch(`${API_URL}/providers/stripe/authorize`, { method: "POST", headers: authHeaders() }));
+}
+
+export async function connectStripeSandbox(): Promise<{ connection: ProviderConnection }> {
+  return parseResponse(await fetch(`${API_URL}/providers/stripe/connect-sandbox`, { method: "POST", headers: authHeaders() }));
 }
 
 export async function syncStripe(): Promise<{ sync_job: SyncJob } | JobResponse> {

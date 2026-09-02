@@ -181,3 +181,37 @@ it("syncs a connected Stripe account and links to its analysis", async () => {
   expect(await screen.findByText("12 transactions normalised")).toBeInTheDocument();
   expect(screen.getByRole("link", { name: /View analysis/ })).toHaveAttribute("href", "/analysis/analysis_stripe");
 });
+
+it("shows processed counts returned by an asynchronous Stripe sync job", async () => {
+  const connection = {
+    provider: "STRIPE" as const,
+    status: "CONNECTED" as const,
+    configured: true,
+    provider_account_id: "acct_test",
+    transactions_imported: 4743,
+    webhook_status: "CONFIGURED",
+  };
+  const synchronizer = vi.fn().mockResolvedValue({
+    job: { id: "job_1", type: "PROVIDER_SYNC", status: "QUEUED", result: {}, error_code: null },
+  });
+  const jobWaiter = vi.fn().mockResolvedValue({
+    id: "job_1", type: "PROVIDER_SYNC", status: "COMPLETED", error_code: null,
+    result: {
+      sync_job_id: "sync_1", status: "COMPLETED", analysis_id: "analysis_stripe",
+      records_received: 4743, records_normalised: 4743,
+    },
+  });
+  const user = userEvent.setup();
+
+  render(
+    <ProviderConnections
+      loader={vi.fn().mockResolvedValue({ providers: [connection] })}
+      synchronizer={synchronizer}
+      jobWaiter={jobWaiter}
+    />
+  );
+
+  await user.click(await screen.findByRole("button", { name: "Sync now" }));
+  expect(await screen.findByText("4,743 transactions normalised")).toBeInTheDocument();
+  expect(jobWaiter).toHaveBeenCalledWith("job_1");
+});

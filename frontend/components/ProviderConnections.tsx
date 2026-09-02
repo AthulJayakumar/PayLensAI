@@ -22,6 +22,7 @@ type Props = {
   oauthConnector?: () => Promise<{ authorization_url: string }>;
   sandboxConnector?: () => Promise<{ connection: ProviderConnection }>;
   synchronizer?: () => Promise<{ sync_job: SyncJob } | JobResponse>;
+  jobWaiter?: (jobId: string) => Promise<import("../lib/api").AsyncJob>;
   disconnector?: () => Promise<void>;
 };
 
@@ -30,6 +31,7 @@ export function ProviderConnections({
   oauthConnector = beginStripeConnection,
   sandboxConnector = connectStripeSandbox,
   synchronizer = syncStripe,
+  jobWaiter = waitForJob,
   disconnector = disconnectStripe,
 }: Props) {
   const [stripe, setStripe] = useState<ProviderConnection | null>(null);
@@ -83,9 +85,11 @@ export function ProviderConnections({
       if ("job" in result) {
         // AWS mode returns an asynchronous queue job; local mode may return a sync result directly.
         setSyncJob({ id: result.job.id, status: "PENDING", records_received: 0, records_normalised: 0, analysis_id: null, errors: [] });
-        const completed = await waitForJob(result.job.id);
+        const completed = await jobWaiter(result.job.id);
         setSyncJob({ id: completed.result.sync_job_id ?? result.job.id, status: completed.result.status === "COMPLETED" ? "COMPLETED" : "FAILED",
-          records_received: 0, records_normalised: 0, analysis_id: completed.result.analysis_id ?? null, errors: [] });
+          records_received: completed.result.records_received ?? completed.result.transaction_count ?? 0,
+          records_normalised: completed.result.records_normalised ?? completed.result.transaction_count ?? 0,
+          analysis_id: completed.result.analysis_id ?? null, errors: [] });
       } else setSyncJob(result.sync_job);
       await refresh();
     } catch (cause) {
@@ -120,7 +124,7 @@ export function ProviderConnections({
           </dl>
           {syncJob && <div className={`sync-result ${syncJob.status.toLowerCase()}`} role="status">
             <strong>Sync {syncJob.status.toLowerCase()}</strong>
-            <span>{syncJob.records_normalised} transactions normalised</span>
+            <span>{syncJob.records_normalised.toLocaleString("en-GB")} transactions normalised</span>
             {syncJob.analysis_id && <a href={`/analysis/${syncJob.analysis_id}`}>View analysis →</a>}
           </div>}
           <div className="provider-actions">

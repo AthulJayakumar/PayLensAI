@@ -111,7 +111,14 @@ class JobWorker:
             if job.type == JobType.PROVIDER_SYNC:
                 merchant = AuthenticatedMerchant(merchant_id=job.merchant_id, name="Queued merchant", actor_id=job.payload.get("actor_id"))
                 sync = self.provider_service.sync(merchant, resume_job_id=job.payload.get("resume_job_id"))
-                result = {"sync_job_id": sync.id, "analysis_id": sync.analysis_id, "status": sync.status.value}
+                result = {
+                    "sync_job_id": sync.id,
+                    "analysis_id": sync.analysis_id,
+                    "status": sync.status.value,
+                    "records_received": sync.records_received,
+                    "records_normalised": sync.records_normalised,
+                    "transaction_count": sync.records_normalised,
+                }
             elif job.type == JobType.WEBHOOK:
                 result = self.provider_service.process_verified_webhook(job.payload["event"], already_recorded=True)
             elif job.type == JobType.ANALYSIS:

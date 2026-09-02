@@ -11,9 +11,9 @@ from fastapi.testclient import TestClient
 from app.api.auth import AuthenticatedMerchant, CognitoAuthenticator, MerchantRole, StaticAuthenticator
 from app.api.errors import APIError
 from app.api.main import create_app
-from app.jobs import InMemoryJobQueue, JobService
+from app.jobs import InMemoryJobQueue, JobService, JobWorker
 from app.persistence.pilot_repository import AuditEvent, InMemoryPilotRepository
-from app.providers.models import JobType, RawProviderObject
+from app.providers.models import JobType, RawProviderObject, SyncJob, SyncStatus
 from app.providers.s3_storage import S3RawProviderDataStore
 from app.providers.stripe.connector import StripeConnector, StripeTransport
 
@@ -57,6 +57,27 @@ def test_job_deduplication_and_cross_merchant_isolation() -> None:
     second = service.enqueue(merchant_id="merchant_a", job_type=JobType.PROVIDER_SYNC, deduplication_key="sync:1", payload={})
     assert first.id == second.id and len(queue.messages) == 1
     assert service.get_owned(first.id, "merchant_b") is None
+
+
+def test_provider_sync_job_reports_processed_record_counts() -> None:
+    repository, queue = InMemoryPilotRepository(), InMemoryJobQueue()
+    queued = JobService(repository, queue).enqueue(
+        merchant_id="merchant_a", job_type=JobType.PROVIDER_SYNC,
+        deduplication_key="sync:counts", payload={},
+    )
+    now = datetime.now(timezone.utc)
+    sync = SyncJob(
+        id="sync_1", merchant_id="merchant_a", connection_id="connection_1",
+        status=SyncStatus.COMPLETED, started_at=now, completed_at=now,
+        records_received=14, records_normalised=12, analysis_id="analysis_1",
+    )
+    provider_service = SimpleNamespace(sync=lambda merchant, resume_job_id=None: sync)
+
+    completed = JobWorker(repository, provider_service).execute(queued.id, "merchant_a")
+
+    assert completed.result["records_received"] == 14
+    assert completed.result["records_normalised"] == 12
+    assert completed.result["transaction_count"] == 12
 
 
 def test_audit_store_records_only_safe_metadata() -> None:

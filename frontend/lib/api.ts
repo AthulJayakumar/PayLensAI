@@ -103,7 +103,14 @@ export type AsyncJob = {
   id: string;
   type: "PROVIDER_SYNC" | "ANALYSIS" | "WEBHOOK";
   status: "QUEUED" | "RUNNING" | "COMPLETED" | "FAILED";
-  result: { analysis_id?: string; sync_job_id?: string; transaction_count?: number; status?: string };
+  result: {
+    analysis_id?: string;
+    sync_job_id?: string;
+    transaction_count?: number;
+    records_received?: number;
+    records_normalised?: number;
+    status?: string;
+  };
   error_code: string | null;
 };
 export type JobResponse = { job: AsyncJob };

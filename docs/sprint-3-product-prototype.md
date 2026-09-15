@@ -76,7 +76,8 @@ or cloud integration exists in Sprint 3.
 ## Frontend routes
 
 - `/` — CSV selection, status, validation/analysis progress, errors.
-- `/analysis/[id]` — KPIs, separate currency cards, insight feed, provider,
+- `/analysis/[id]` — whole-business GBP cash flow with conversion coverage,
+  monthly native-currency cash flow, KPIs, collapsible insight feed, provider,
   method, network, and country tables.
 - `/analysis/[id]/insights/[insightId]` — evidence, baseline/current values,
   affected amounts, and deterministic explanation sections.
@@ -88,4 +89,3 @@ or cloud integration exists in Sprint 3.
 - Analyses disappear when the backend process restarts.
 - The prototype has no merchant authentication or tenant isolation yet and must
   not be exposed publicly.
-

@@ -76,7 +76,14 @@ const monthlyCashFlow: MonthlyCashFlow = {
     service_charges: "Processing fees plus provider fees plus other payment costs.",
     net_inflow: "Gross inflow minus money out and service charges.",
     currency_policy: "Every amount is reported per currency; currencies are never combined.",
+    gbp_policy: "Whole-business GBP uses provider settlement evidence.",
     provider_fee_note: "Stripe combined fees are reported as processing fees when separate provider fees are unavailable.",
+  },
+  gbp_summary: {
+    reporting_currency: "GBP", gross_inflow: "2950", money_out: "30", service_charges: "43.5",
+    total_reductions: "73.5", net_inflow: "2876.5", cash_activity_transaction_count: 110,
+    included_transaction_count: 110, excluded_transaction_count: 0, native_gbp_transaction_count: 100,
+    provider_converted_transaction_count: 10, conversion_coverage_rate: "1", excluded_currencies: [], is_complete: true,
   },
   totals: [
     { currency: "GBP", transaction_count: 100, attempted_value: "1500", gross_inflow: "1350", refunds: "25", disputed_value: "5", processing_fees: "15", provider_fees: "7", other_costs: "1.5", service_charges: "23.5", money_out: "30", total_reductions: "53.5", net_inflow: "1296.5" },
@@ -155,6 +162,9 @@ it("renders collapsible monthly cash flow with provider charges and currencies k
   render(<DashboardView summary={summary} kpis={kpis} insights={[insight]} monthlyCashFlow={monthlyCashFlow} performance={{ provider: segments, payment_method: segments, card_network: segments, issuer_country: segments }} />);
   expect(screen.getByText("Payment performance")).toBeInTheDocument();
   expect(screen.getByText("Money in, money out and provider charges")).toBeInTheDocument();
+  expect(screen.getByText("Whole business cash flow in GBP")).toBeInTheDocument();
+  expect(screen.getByText("100.0% conversion coverage")).toBeInTheDocument();
+  expect(screen.getByText("£2,950.00")).toBeInTheDocument();
   expect(screen.getByText("£1,350.00")).toBeInTheDocument();
   expect(screen.getByText("Charges by payment provider")).toBeInTheDocument();
   expect(screen.getAllByText("90.00%").length).toBeGreaterThan(0);

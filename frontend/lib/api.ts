@@ -95,6 +95,22 @@ export type MonthlyFlowPeriod = {
 };
 export type ProviderCostPeriod = MonthlyFlowPeriod & { provider: string };
 export type CashFlowTotal = Omit<MonthlyFlowPeriod, "period">;
+export type GbpCashFlowSummary = {
+  reporting_currency: "GBP";
+  gross_inflow: string;
+  money_out: string;
+  service_charges: string;
+  total_reductions: string;
+  net_inflow: string;
+  cash_activity_transaction_count: number;
+  included_transaction_count: number;
+  excluded_transaction_count: number;
+  native_gbp_transaction_count: number;
+  provider_converted_transaction_count: number;
+  conversion_coverage_rate: string;
+  excluded_currencies: string[];
+  is_complete: boolean;
+};
 export type MonthlyCashFlow = {
   definitions: {
     gross_inflow: string;
@@ -102,8 +118,10 @@ export type MonthlyCashFlow = {
     service_charges: string;
     net_inflow: string;
     currency_policy: string;
+    gbp_policy: string;
     provider_fee_note: string;
   };
+  gbp_summary: GbpCashFlowSummary;
   totals: CashFlowTotal[];
   periods: MonthlyFlowPeriod[];
   provider_costs: ProviderCostPeriod[];

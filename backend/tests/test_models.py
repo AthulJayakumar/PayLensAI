@@ -72,3 +72,9 @@ def test_timestamps_must_include_timezone() -> None:
     with pytest.raises(ValidationError, match="timezone"):
         PayLensTransaction.model_validate(data)
 
+
+def test_settlement_values_require_a_settlement_currency() -> None:
+    data = valid_transaction_data()
+    data["settlement_gross_amount"] = Decimal("10")
+    with pytest.raises(ValidationError, match="settlement currency"):
+        PayLensTransaction.model_validate(data)

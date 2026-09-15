@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import hashlib
 from datetime import datetime, timezone
-from decimal import Decimal
+from decimal import Decimal, ROUND_HALF_UP
 
 from app.models import (
     CardNetwork,
@@ -101,7 +101,39 @@ class StripeNormalizer:
             balance = {}
         amount = _money(payment_intent.get("amount"), currency)
         gross = _money(payment_intent.get("amount_received"), currency) if status == PaymentStatus.SUCCEEDED else Decimal("0")
-        processing_fee = _money(balance.get("fee"), currency)
+        settlement_currency = str(balance.get("currency", "")).upper() or None
+        settlement_gross = (
+            _money(balance.get("amount"), settlement_currency)
+            if balance.get("amount") is not None and settlement_currency
+            else None
+        )
+        settlement_fee = (
+            _money(balance.get("fee"), settlement_currency)
+            if balance.get("fee") is not None and settlement_currency
+            else None
+        )
+        settlement_net = (
+            _money(balance.get("net"), settlement_currency)
+            if balance.get("net") is not None and settlement_currency
+            else None
+        )
+        exchange_rate = (
+            Decimal(str(balance["exchange_rate"]))
+            if balance.get("exchange_rate") is not None
+            else None
+        )
+        # Canonical KPI costs use the payment currency. When Stripe settles into
+        # another currency, reverse its documented source-to-settlement rate.
+        if settlement_fee is None:
+            processing_fee = Decimal("0")
+        elif settlement_currency == currency:
+            processing_fee = settlement_fee
+        elif exchange_rate is not None:
+            processing_fee = (settlement_fee / exchange_rate).quantize(
+                Decimal("0.000001"), rounding=ROUND_HALF_UP
+            )
+        else:
+            processing_fee = Decimal("0")
         refund_amount = _money(charge.get("amount_refunded"), currency)
         dispute = charge.get("dispute") or {}
         disputed = bool(charge.get("disputed") or dispute)
@@ -146,13 +178,20 @@ class StripeNormalizer:
             dispute_amount=dispute_amount,
             dispute_reason=dispute.get("reason"),
             settlement_date=None,
-            settlement_currency=balance.get("currency", "").upper() or None,
+            settlement_currency=settlement_currency,
+            settlement_gross_amount=settlement_gross,
+            settlement_fee=settlement_fee,
+            settlement_net_amount=settlement_net,
+            exchange_rate=exchange_rate,
             payout_reference=None,
             source_type=source,
             source_timestamp=now,
             raw_data_reference=raw_reference,
             data_availability={
                 "settlement_date": DataAvailability.NOT_AVAILABLE,
+                "settlement_amounts": DataAvailability.AVAILABLE if settlement_gross is not None else DataAvailability.NOT_AVAILABLE,
+                "exchange_rate": DataAvailability.AVAILABLE if exchange_rate is not None else DataAvailability.NOT_AVAILABLE,
+                "processing_fee": DataAvailability.AVAILABLE if settlement_fee is not None else DataAvailability.NOT_AVAILABLE,
                 "provider_fee": DataAvailability.NOT_AVAILABLE,
                 "payout_reference": DataAvailability.NOT_AVAILABLE,
                 "card_details": DataAvailability.AVAILABLE if card else DataAvailability.NOT_AVAILABLE,

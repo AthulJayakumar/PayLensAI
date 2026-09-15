@@ -276,6 +276,13 @@ tbody tr:last-child td { border: 0; }
 
 /* Monthly cash flow: summary, proportional graph, exact ledger, and provider charges. */
 .cash-flow-panel { padding-top: 24px; }
+.gbp-overview { margin-top: 18px; padding: 18px; border: 1px solid #cfd9ff; border-radius: 14px; background: linear-gradient(135deg,#f4f7ff,#fbfcff); }
+.gbp-overview-heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.gbp-overview-heading h3 { margin: 2px 0 0; font-size: 18px; }
+.coverage-complete, .coverage-partial { padding: 6px 9px; border-radius: 999px; font-size: 10px; font-weight: 700; white-space: nowrap; }
+.coverage-complete { color: #17633d; background: #ddf7ea; }
+.coverage-partial { color: #8a4b08; background: #fff0d5; }
+.conversion-warning { margin: 12px 0 0; padding: 10px 12px; border-radius: 9px; color: #7c3f00; background: #fff7e8; font-size: 11px; line-height: 1.5; }
 .cash-flow-heading { align-items: flex-end; }
 .cash-flow-heading .eyebrow { margin-bottom: 8px; }
 .currency-picker { display: flex; align-items: center; gap: 9px; color: var(--ink-soft); font-size: 11px; font-weight: 700; }
@@ -316,6 +323,7 @@ tbody tr:last-child td { border: 0; }
   .expandable-content { padding: 0 16px 19px; }
   .expandable-actions em { display: none; }
   .cash-flow-heading { align-items: flex-start; flex-direction: column; }
+  .gbp-overview-heading { align-items: flex-start; flex-direction: column; }
   .flow-summary { grid-template-columns: 1fr; }
   .flow-chart { padding: 14px 10px; }
   .flow-chart-row { grid-template-columns: 70px 1fr; }

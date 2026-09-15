@@ -87,13 +87,18 @@ it later without changing connector, normalizer, sync, or webhook services.
 | `last_payment_error` | failure fields | Native code/message retained; category mapped |
 | `latest_charge.id` | `provider_reference` | Missing remains `None` |
 | payment method details | method/network/funding/country | Wallet/card values mapped when present |
-| balance transaction fee | `processing_fee` | No fee fabricated if expansion is unavailable |
+| balance transaction `amount`, `fee`, `net`, `currency` | settlement amount fields | Exact provider balance evidence retained for reporting |
+| balance transaction `exchange_rate` | `exchange_rate` | Source-to-settlement rate retained; no rate is fabricated |
+| balance transaction fee | `processing_fee` | Same-currency fee is exact; cross-currency equivalent uses Stripe's rate |
 | `amount_refunded` | refund fields | Full/partial from actual amounts |
 | dispute data | dispute fields | Mapped after lifecycle refresh when available |
 | raw object reference | `raw_data_reference` | Points to preserved provider JSON |
 
-Unavailable settlement date, payout reference and provider-fee split remain
-`None`/zero with explicit `NOT_AVAILABLE` metadata.
+Unavailable settlement date, settlement conversion, payout reference and
+provider-fee split remain `None`/zero with explicit `NOT_AVAILABLE` metadata.
+The UK reporting view combines native GBP with provider-settled GBP amounts.
+It visibly reports the count and currencies of cash-affecting records excluded
+because their provider supplied no GBP settlement evidence.
 
 ## Historical synchronization
 

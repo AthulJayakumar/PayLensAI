@@ -11,6 +11,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 
 
 Money = Annotated[Decimal, Field(ge=0, max_digits=20, decimal_places=6)]
+ExchangeRate = Annotated[Decimal, Field(gt=0)]
 
 
 class PaymentProvider(StrEnum):
@@ -160,6 +161,12 @@ class PayLensTransaction(BaseModel):
 
     settlement_date: datetime | None = None
     settlement_currency: str | None = Field(default=None, pattern=r"^[A-Z]{3}$")
+    # Provider settlement values preserve the actual balance-currency evidence.
+    # They let reporting combine currencies without inventing an exchange rate.
+    settlement_gross_amount: Money | None = None
+    settlement_fee: Money | None = None
+    settlement_net_amount: Money | None = None
+    exchange_rate: ExchangeRate | None = None
     payout_reference: str | None = Field(default=None, max_length=255)
 
     source_type: SourceType
@@ -214,4 +221,14 @@ class PayLensTransaction(BaseModel):
             raise ValueError("updated_at_internal cannot precede created_at_internal")
         if self.settled_at is not None and self.authorised_at is None:
             raise ValueError("settled transactions require an authorisation timestamp")
+        if any(
+            value is not None
+            for value in (
+                self.settlement_gross_amount,
+                self.settlement_fee,
+                self.settlement_net_amount,
+                self.exchange_rate,
+            )
+        ) and self.settlement_currency is None:
+            raise ValueError("settlement values require a settlement currency")
         return self

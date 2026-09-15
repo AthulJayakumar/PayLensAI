@@ -48,7 +48,9 @@ model does not decide the numbers, whether an anomaly exists, or its severity.
 - A deterministic 100,000-row synthetic-data generator with known anomalies.
 - Currency-safe KPIs, segmentation, baseline comparison, and seven detectors.
 - Monthly money-in, money-out, net-flow, and provider service-charge reporting,
-  with currencies kept separate and exact values behind every graph.
+  with currencies kept separate and exact values behind every graph. A separate
+  whole-business GBP total uses provider settlement evidence and displays its
+  conversion coverage instead of guessing missing exchange rates.
 - A FastAPI backend and a TypeScript/React dashboard.
 - PostgreSQL persistence with merchant separation and role-based access.
 - Compressed single-request dashboards with short-lived, bounded analysis caching

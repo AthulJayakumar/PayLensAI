@@ -20,6 +20,7 @@ export function MonthlyCashFlow({ data }: { data: MonthlyCashFlowData }) {
   // Totals come from Python Decimal arithmetic; the browser only formats them.
   const totals = data.totals.find((row) => row.currency === selectedCurrency);
   const chartMaximum = Math.max(1, ...periods.flatMap((row) => [Number(row.gross_inflow), Number(row.total_reductions)]));
+  const gbp = data.gbp_summary;
 
   if (!periods.length || !totals) return <p className="empty-flow">No monthly payment activity is available.</p>;
 
@@ -28,6 +29,27 @@ export function MonthlyCashFlow({ data }: { data: MonthlyCashFlowData }) {
       <div className="section-heading cash-flow-heading">
         <div><p className="eyebrow">Monthly movement</p><h2 id="cash-flow-heading">Money in, money out and provider charges</h2></div>
         {currencies.length > 1 && <label className="currency-picker">Currency<select value={selectedCurrency} onChange={(event) => setSelectedCurrency(event.target.value)}>{currencies.map((currency) => <option key={currency}>{currency}</option>)}</select></label>}
+      </div>
+
+      <div className="gbp-overview" aria-label="Whole business cash flow in pounds">
+        <div className="gbp-overview-heading">
+          <div><p className="eyebrow">UK reporting view</p><h3>Whole business cash flow in GBP</h3></div>
+          <span className={gbp.is_complete ? "coverage-complete" : "coverage-partial"}>
+            {(Number(gbp.conversion_coverage_rate) * 100).toFixed(1)}% conversion coverage
+          </span>
+        </div>
+        <div className="flow-summary">
+          <article><span>Money in</span><strong>{formatMoney(gbp.gross_inflow, "GBP")}</strong><small>All supported currencies in pounds</small></article>
+          <article><span>Money out</span><strong>{formatMoney(gbp.money_out, "GBP")}</strong><small>Refunds + disputed value</small></article>
+          <article><span>Service charges</span><strong>{formatMoney(gbp.service_charges, "GBP")}</strong><small>Provider and processing costs</small></article>
+          <article><span>Net after reductions</span><strong>{formatMoney(gbp.net_inflow, "GBP")}</strong><small>Money in − all reductions</small></article>
+        </div>
+        {!gbp.is_complete && (
+          <p className="conversion-warning" role="alert">
+            {formatInteger(gbp.excluded_transaction_count)} cash-affecting transaction(s) in {gbp.excluded_currencies.join(", ")} were excluded because no provider GBP conversion was available. Re-sync the provider to refresh settlement data.
+          </p>
+        )}
+        <p className="flow-definition">{data.definitions.gbp_policy}</p>
       </div>
 
       <div className="flow-summary" aria-label={`${selectedCurrency} cash flow totals`}>

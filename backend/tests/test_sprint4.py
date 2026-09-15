@@ -6,6 +6,7 @@ import json
 import os
 import time
 from datetime import datetime, timedelta, timezone
+from decimal import Decimal
 
 import pytest
 from cryptography.fernet import Fernet
@@ -70,7 +71,13 @@ def stripe_intent(
                 "type": "card",
                 "card": {"brand": "mastercard", "funding": "debit", "country": "US"},
             },
-            "balance_transaction": {"fee": 66, "currency": "gbp"},
+            "balance_transaction": {
+                "amount": amount if status == "succeeded" else 0,
+                "fee": 66 if status == "succeeded" else 0,
+                "net": amount - 66 if status == "succeeded" else 0,
+                "currency": "gbp",
+                "exchange_rate": None,
+            },
         },
     }
 
@@ -273,12 +280,39 @@ def test_stripe_normalizer_maps_available_fields_without_fabrication() -> None:
     assert transaction.status == PaymentStatus.SUCCEEDED
     assert transaction.amount == transaction.gross_amount
     assert transaction.processing_fee > 0
+    assert transaction.settlement_gross_amount == transaction.gross_amount
+    assert transaction.settlement_fee == transaction.processing_fee
+    assert transaction.settlement_net_amount == transaction.net_amount
     assert transaction.card_network.value == "MASTERCARD"
     assert transaction.issuer_country == "US"
     assert transaction.raw_data_reference == "raw_1"
     assert transaction.data_availability["settlement_date"] == DataAvailability.NOT_AVAILABLE
     assert transaction.settlement_date is None
     assert transaction.provider_fee == 0
+
+
+def test_stripe_normalizer_preserves_foreign_payment_gbp_settlement_evidence() -> None:
+    intent = stripe_intent("pi_usd_settled_gbp", amount=10000)
+    intent["currency"] = "usd"
+    intent["latest_charge"]["balance_transaction"] = {
+        "amount": 8100,
+        "fee": 240,
+        "net": 7860,
+        "currency": "gbp",
+        "exchange_rate": 0.81,
+    }
+
+    transaction = StripeNormalizer().normalize(
+        intent, merchant_id="merchant_a", raw_reference="raw_fx", source=SourceType.API
+    )
+
+    assert transaction.amount == 100
+    assert transaction.settlement_currency == "GBP"
+    assert transaction.settlement_gross_amount == 81
+    assert transaction.settlement_fee == Decimal("2.4")
+    assert transaction.settlement_net_amount == Decimal("78.6")
+    assert transaction.exchange_rate == Decimal("0.81")
+    assert transaction.processing_fee == Decimal("2.962963")
 
 
 def test_failed_stripe_payment_maps_failure_details() -> None:

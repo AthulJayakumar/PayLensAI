@@ -20,6 +20,7 @@ OPTIONAL_FIELDS = {
     for field_name, field in PayLensTransaction.model_fields.items()
     if not field.is_required()
 }
+REQUIRED_FIELDS = set(PayLensTransaction.model_fields) - OPTIONAL_FIELDS
 
 
 def load_transactions_csv(path: str | Path) -> list[PayLensTransaction]:
@@ -28,7 +29,8 @@ def load_transactions_csv(path: str | Path) -> list[PayLensTransaction]:
     transactions: list[PayLensTransaction] = []
     with Path(path).open(newline="", encoding="utf-8") as source:
         reader = csv.DictReader(source)
-        missing = set(PayLensTransaction.model_fields) - set(reader.fieldnames or [])
+        # New optional canonical fields must not make historical exports unreadable.
+        missing = REQUIRED_FIELDS - set(reader.fieldnames or [])
         if missing:
             raise CSVTransactionValidationError(
                 f"CSV is missing canonical fields: {', '.join(sorted(missing))}"
@@ -46,4 +48,3 @@ def load_transactions_csv(path: str | Path) -> list[PayLensTransaction]:
                     f"invalid canonical transaction at CSV row {row_number}: {error}"
                 ) from error
     return transactions
-

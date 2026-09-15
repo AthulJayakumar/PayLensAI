@@ -54,4 +54,36 @@ def test_monthly_cash_flow_handles_an_empty_dataset() -> None:
     assert result["periods"] == []
     assert result["provider_costs"] == []
     assert result["totals"] == []
+    assert result["gbp_summary"]["gross_inflow"] == "0.000000"
+    assert result["gbp_summary"]["conversion_coverage_rate"] == "1.000000"
     assert "never combined" in result["definitions"]["currency_policy"]
+
+
+def test_whole_business_gbp_summary_uses_provider_fx_and_reports_exclusions(transaction_factory) -> None:
+    transactions = [
+        transaction_factory(
+            amount="100", currency="GBP", processing_fee="2", provider_fee="0", other_cost="0",
+            refund_amount="10",
+        ),
+        transaction_factory(
+            amount="100", currency="USD", processing_fee="3", provider_fee="0", other_cost="0",
+            refund_amount="10", settlement_currency="GBP", settlement_gross_amount="80",
+            settlement_fee="2", settlement_net_amount="78", exchange_rate="0.8",
+        ),
+        transaction_factory(
+            amount="50", currency="EUR", processing_fee="1", provider_fee="0", other_cost="0",
+        ),
+    ]
+
+    summary = monthly_cash_flow(transactions)["gbp_summary"]
+
+    assert Decimal(summary["gross_inflow"]) == Decimal("180")
+    assert Decimal(summary["money_out"]) == Decimal("18")
+    assert Decimal(summary["service_charges"]) == Decimal("4")
+    assert Decimal(summary["net_inflow"]) == Decimal("158")
+    assert summary["cash_activity_transaction_count"] == 3
+    assert summary["included_transaction_count"] == 2
+    assert summary["excluded_transaction_count"] == 1
+    assert summary["conversion_coverage_rate"] == "0.666667"
+    assert summary["excluded_currencies"] == ["EUR"]
+    assert summary["is_complete"] is False

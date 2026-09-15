@@ -7,9 +7,9 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { AppHeader } from "../../../components/AppHeader";
 import { DashboardView } from "../../../components/DashboardView";
-import { AnalysisSummary, fetchDashboard, Insight, KpiResponse, SegmentsResponse } from "../../../lib/api";
+import { AnalysisSummary, fetchDashboard, Insight, KpiResponse, MonthlyCashFlow, SegmentsResponse } from "../../../lib/api";
 
-type DashboardData = { summary: AnalysisSummary; kpis: KpiResponse; insights: Insight[]; performance: Record<string, SegmentsResponse>; loadMs: number };
+type DashboardData = { summary: AnalysisSummary; kpis: KpiResponse; insights: Insight[]; monthlyCashFlow: MonthlyCashFlow; performance: Record<string, SegmentsResponse>; loadMs: number };
 
 export default function AnalysisPage() {
   const params = useParams<{ id: string }>();
@@ -20,8 +20,8 @@ export default function AnalysisPage() {
   useEffect(() => {
     // The API loads and validates a provider-sized analysis once, then returns every panel.
     const started = performance.now();
-    fetchDashboard(analysisId).then(({ summary, kpis, insights, performance: segmentPerformance }) => {
-      setData({ summary, kpis, insights: insights.insights, performance: segmentPerformance, loadMs: performance.now() - started });
+    fetchDashboard(analysisId).then(({ summary, kpis, insights, monthly_cash_flow, performance: segmentPerformance }) => {
+      setData({ summary, kpis, insights: insights.insights, monthlyCashFlow: monthly_cash_flow, performance: segmentPerformance, loadMs: performance.now() - started });
     }).catch((requestError) => setError(requestError instanceof Error ? requestError.message : "The analysis could not be loaded."));
   }, [analysisId]);
 

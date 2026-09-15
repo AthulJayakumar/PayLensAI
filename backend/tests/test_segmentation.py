@@ -1,7 +1,11 @@
 from datetime import datetime, timezone
 
 from app.analytics.models import SegmentDimension, TimeGranularity
-from app.analytics.segmentation import MISSING_SEGMENT_VALUE, segment_metrics
+from app.analytics.segmentation import (
+    MISSING_SEGMENT_VALUE,
+    segment_metrics,
+    segment_metrics_by_dimension,
+)
 from app.models import CardNetwork, FailureCategory, PaymentMethod, PaymentProvider, PaymentStatus
 
 
@@ -85,3 +89,17 @@ def test_every_requested_single_dimension_is_supported(transaction_factory) -> N
     for dimension, value in expected.items():
         result = segment_metrics([transaction], [dimension])
         assert result[0].segment[dimension.value] == value
+
+
+def test_one_pass_dashboard_segmentation_matches_individual_calculations(transaction_factory) -> None:
+    transactions = [
+        transaction_factory(provider=PaymentProvider.STRIPE, issuer_country="GB"),
+        transaction_factory(provider=PaymentProvider.ADYEN, issuer_country="US"),
+        transaction_factory(provider=PaymentProvider.STRIPE, issuer_country="US"),
+    ]
+    dimensions = [SegmentDimension.PROVIDER, SegmentDimension.ISSUER_COUNTRY]
+
+    combined = segment_metrics_by_dimension(transactions, dimensions)
+
+    for dimension in dimensions:
+        assert combined[dimension] == segment_metrics(transactions, [dimension])

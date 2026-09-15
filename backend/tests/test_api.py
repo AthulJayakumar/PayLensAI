@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 from io import BytesIO
+from decimal import Decimal
 
 import pytest
 from fastapi.testclient import TestClient
@@ -135,11 +136,25 @@ def test_dashboard_loads_once_and_matches_existing_resources(api_context, monkey
     response = client.get(f"/analysis/{analysis_id}/dashboard")
 
     assert response.status_code == 200
+    assert response.headers["content-encoding"] == "gzip"
     body = response.json()
     assert calls == 1
     assert body["summary"]["analysis_id"] == analysis_id
     assert body["kpis"]["overall"]["transaction_count"] == 20_000
     assert body["insights"]["count"] == len(body["insights"]["insights"])
+    assert body["monthly_cash_flow"]["periods"]
+    for period in body["monthly_cash_flow"]["periods"]:
+        assert Decimal(period["service_charges"]) == (
+            Decimal(period["processing_fees"])
+            + Decimal(period["provider_fees"])
+            + Decimal(period["other_costs"])
+        )
+        assert Decimal(period["net_inflow"]) == (
+            Decimal(period["gross_inflow"]) - Decimal(period["total_reductions"])
+        )
+    assert {row["provider"] for row in body["monthly_cash_flow"]["provider_costs"]} == {
+        "STRIPE", "PAYPAL", "ADYEN"
+    }
     assert set(body["performance"]) == {
         "provider", "payment_method", "card_network", "issuer_country"
     }

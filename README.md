@@ -47,8 +47,12 @@ model does not decide the numbers, whether an anomaly exists, or its severity.
 - One provider-neutral transaction format for CSV and Stripe data.
 - A deterministic 100,000-row synthetic-data generator with known anomalies.
 - Currency-safe KPIs, segmentation, baseline comparison, and seven detectors.
+- Monthly money-in, money-out, net-flow, and provider service-charge reporting,
+  with currencies kept separate and exact values behind every graph.
 - A FastAPI backend and a TypeScript/React dashboard.
 - PostgreSQL persistence with merchant separation and role-based access.
+- Compressed single-request dashboards with short-lived, bounded analysis caching
+  for faster repeat page loads.
 - Stripe sandbox/OAuth connection, historical sync, signed webhooks, refunds,
   disputes, reconciliation, diagnostics, and safe failed-job retries.
 - An AWS pilot using ECS, RDS, S3, SQS, Cognito, CloudFront, monitoring,

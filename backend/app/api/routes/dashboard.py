@@ -2,8 +2,9 @@
 
 from fastapi import APIRouter, Depends
 
-from app.analytics.models import SegmentDimension
-from app.analytics.segmentation import segment_metrics
+from app.analytics.cash_flow import monthly_cash_flow
+from app.analytics.models import SegmentDimension, SegmentMetrics
+from app.analytics.segmentation import segment_metrics_by_dimension
 from app.api.dependencies import require_analysis
 from app.api.repositories import AnalysisRecord
 from app.api.routes.analysis import analysis_summary
@@ -20,9 +21,12 @@ DASHBOARD_DIMENSIONS = (
 )
 
 
-def _segments(record: AnalysisRecord, dimension: SegmentDimension) -> dict:
+def _segments(
+    record: AnalysisRecord,
+    dimension: SegmentDimension,
+    groups: list[SegmentMetrics],
+) -> dict:
     """Build one segment panel from the already-loaded canonical transactions."""
-    groups = segment_metrics(record.transactions, [dimension])
     return {
         "analysis_id": record.analysis_id,
         "dimensions": [dimension.value],
@@ -45,6 +49,8 @@ def get_dashboard(record: AnalysisRecord = Depends(require_analysis)) -> dict:
         record.result.insights,
         key=lambda item: (SEVERITY_ORDER[item.severity], item.id),
     )
+    # Group all dashboard dimensions during one traversal of the transaction list.
+    grouped_segments = segment_metrics_by_dimension(record.transactions, DASHBOARD_DIMENSIONS)
     return {
         "summary": analysis_summary(record),
         "kpis": {
@@ -56,8 +62,10 @@ def get_dashboard(record: AnalysisRecord = Depends(require_analysis)) -> dict:
             "count": len(insights),
             "insights": [insight_payload(item) for item in insights],
         },
+        # Cash flow is accumulated once and kept per currency and provider.
+        "monthly_cash_flow": monthly_cash_flow(record.transactions),
         "performance": {
-            dimension.value: _segments(record, dimension)
+            dimension.value: _segments(record, dimension, grouped_segments[dimension])
             for dimension in DASHBOARD_DIMENSIONS
         },
     }

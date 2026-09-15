@@ -1,19 +1,22 @@
 /** Pure dashboard renderer: all network loading is handled by the route component. */
 
-import { AnalysisSummary, Insight, KpiResponse, SegmentsResponse } from "../lib/api";
+import { AnalysisSummary, Insight, KpiResponse, MonthlyCashFlow as MonthlyCashFlowData, SegmentsResponse } from "../lib/api";
 import { formatInteger, formatMoney, formatRate } from "../lib/format";
+import { ExpandableSection } from "./ExpandableSection";
 import { InsightsFeed } from "./InsightsFeed";
+import { MonthlyCashFlow } from "./MonthlyCashFlow";
 import { PerformanceTable } from "./PerformanceTable";
 
 type DashboardViewProps = {
   summary: AnalysisSummary;
   kpis: KpiResponse;
   insights: Insight[];
+  monthlyCashFlow: MonthlyCashFlowData;
   performance: Record<string, SegmentsResponse>;
   dashboardLoadMs?: number;
 };
 
-export function DashboardView({ summary, kpis, insights, performance, dashboardLoadMs }: DashboardViewProps) {
+export function DashboardView({ summary, kpis, insights, monthlyCashFlow, performance, dashboardLoadMs }: DashboardViewProps) {
   return (
     <>
       <section className="dashboard-title">
@@ -32,31 +35,37 @@ export function DashboardView({ summary, kpis, insights, performance, dashboardL
         <article className="metric-card"><span>Insights</span><strong>{formatInteger(insights.length)}</strong><small>Deterministic findings</small></article>
       </section>
 
-      <section className="currency-section">
-        <div className="section-heading"><div><p className="eyebrow">No currency mixing</p><h2>Currency performance</h2></div></div>
-        <div className="currency-grid">
-          {Object.entries(kpis.currencies).map(([currency, values]) => (
-            <article className="currency-card" key={currency}>
-              <div className="currency-title"><span>{currency}</span><small>Effective cost {formatRate(values.effective_cost_rate)}</small></div>
-              <dl>
-                <div><dt>Attempted value</dt><dd>{formatMoney(values.attempted_value, currency)}</dd></div>
-                <div><dt>Successful value</dt><dd>{formatMoney(values.successful_value, currency)}</dd></div>
-                <div><dt>Failed attempted value</dt><dd>{formatMoney(values.failed_attempted_value, currency)}</dd></div>
-                <div><dt>Payment cost</dt><dd>{formatMoney(values.total_cost, currency)}</dd></div>
-              </dl>
-            </article>
-          ))}
-        </div>
-      </section>
+      <div className="dashboard-disclosures">
+        <ExpandableSection title="Analysis and cash flow" description="Monthly money movement, service charges, graphs and segment results" defaultOpen>
+          <MonthlyCashFlow data={monthlyCashFlow} />
+          <section className="currency-section">
+            <div className="section-heading"><div><p className="eyebrow">No currency mixing</p><h2>Currency performance</h2></div></div>
+            <div className="currency-grid">
+              {Object.entries(kpis.currencies).map(([currency, values]) => (
+                <article className="currency-card" key={currency}>
+                  <div className="currency-title"><span>{currency}</span><small>Effective cost {formatRate(values.effective_cost_rate)}</small></div>
+                  <dl>
+                    <div><dt>Attempted value</dt><dd>{formatMoney(values.attempted_value, currency)}</dd></div>
+                    <div><dt>Successful value</dt><dd>{formatMoney(values.successful_value, currency)}</dd></div>
+                    <div><dt>Failed attempted value</dt><dd>{formatMoney(values.failed_attempted_value, currency)}</dd></div>
+                    <div><dt>Payment cost</dt><dd>{formatMoney(values.total_cost, currency)}</dd></div>
+                  </dl>
+                </article>
+              ))}
+            </div>
+          </section>
+          <section className="performance-grid" aria-label="Segment performance">
+            <PerformanceTable title="Provider performance" segments={performance.provider.segments} />
+            <PerformanceTable title="Payment method performance" segments={performance.payment_method.segments} />
+            <PerformanceTable title="Card network performance" segments={performance.card_network.segments} />
+            <PerformanceTable title="Country performance" segments={performance.issuer_country.segments} />
+          </section>
+        </ExpandableSection>
 
-      <InsightsFeed analysisId={summary.analysis_id} insights={insights} />
-
-      <section className="performance-grid" aria-label="Segment performance">
-        <PerformanceTable title="Provider performance" segments={performance.provider.segments} />
-        <PerformanceTable title="Payment method performance" segments={performance.payment_method.segments} />
-        <PerformanceTable title="Card network performance" segments={performance.card_network.segments} />
-        <PerformanceTable title="Country performance" segments={performance.issuer_country.segments} />
-      </section>
+        <ExpandableSection title="Insights" description="Deterministic anomalies and opportunities, ordered by severity" badge={`${insights.length} findings`}>
+          <InsightsFeed analysisId={summary.analysis_id} insights={insights} />
+        </ExpandableSection>
+      </div>
     </>
   );
 }

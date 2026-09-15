@@ -108,6 +108,7 @@ reproducible test fixture, not random demo data that changes on every run.
 | `models.py` | Defines typed KPI, segmented KPI, and baseline-comparison results. |
 | `csv_loader.py` | Reads CSV rows, rejects malformed input, and constructs canonical transactions. |
 | `kpis.py` | Calculates counts, currency-separated amounts, fees, averages, and rates using exact decimal arithmetic. |
+| `cash_flow.py` | Reconciles monthly gross inflow, refunds, disputed value, service charges, total reductions, net inflow, and provider cost splits in one pass. |
 | `segmentation.py` | Groups transactions by one to three dimensions and calculates KPIs for each group. |
 | `baseline.py` | Compares current and historical failure performance, including absolute/relative change and affected value. |
 | `pipeline.py` | Runs loading, KPIs, and insights in sequence while measuring each stage. |
@@ -156,6 +157,7 @@ insight model.
 | `health.py` | Reports process liveness and dependency readiness without exposing secrets. |
 | `auth_config.py` | Gives the browser only the non-secret Cognito region and client identifier it needs. |
 | `analysis.py` | Creates, queues, lists, and retrieves merchant-owned analyses. |
+| `dashboard.py` | Returns the entire analysis page from one owned analysis load, including monthly cash flow and all segment panels. |
 | `kpis.py` | Returns the stored overall KPI result for an analysis. |
 | `segments.py` | Returns requested one-, two-, or three-dimensional segment performance. |
 | `insights.py` | Lists, filters, orders, and retrieves structured insights. |
@@ -203,6 +205,12 @@ Alembic migrations in `backend/migrations/versions/` are the ordered history of
 database schema changes. Never rewrite an already-deployed migration; add a new
 one.
 
+`analysis_repository.py` also keeps the most recently hydrated analysis for
+60 seconds by default. This avoids repeating a large database read and model
+validation when the same merchant refreshes an analysis page. Set
+`PAYLENS_ANALYSIS_CACHE_TTL_SECONDS=0` to disable it; the bounded entry count
+prevents provider-sized analyses from growing memory without limit.
+
 ### Jobs and administration
 
 | File | Responsibility |
@@ -221,7 +229,7 @@ one.
 | `page.tsx` | Introduces PayLens and submits a canonical CSV for analysis. |
 | `login/page.tsx` | Performs Cognito sign-in and password-reset request/confirmation flows. |
 | `providers/page.tsx` | Loads the Stripe connection manager and operational diagnostics. |
-| `analysis/[id]/page.tsx` | Loads and displays KPIs, segment tables, insights, and timing for one analysis. |
+| `analysis/[id]/page.tsx` | Loads one combined dashboard response and displays KPIs, monthly cash flow, provider costs, segments, insights, and timing. |
 | `analysis/[id]/insights/[insightId]/page.tsx` | Loads the evidence and explanation for one insight. |
 | `globals.css` | Defines brand tokens, layouts, responsive behavior, states, and reusable visual classes. |
 
@@ -232,6 +240,8 @@ one.
 | `AppHeader.tsx` | Shared PayLens navigation and current-analysis context. |
 | `UploadPanel.tsx` | Selects a CSV, displays validation/progress, submits it, and waits for an asynchronous job when needed. |
 | `DashboardView.tsx` | Composes the main analysis result without owning network requests. |
+| `ExpandableSection.tsx` | Provides accessible dropdown sections and delays rendering large hidden result areas. |
+| `MonthlyCashFlow.tsx` | Displays monthly inflow, refunds/disputes, provider charges, net flow, graphs, and exact tables without mixing currencies. |
 | `PerformanceTable.tsx` | Displays comparable metrics for any segment dimension. |
 | `InsightsFeed.tsx` | Displays prioritised structured insights. |
 | `InsightDetailView.tsx` | Displays one insight's segment, evidence, comparison, severity, and explanation. |

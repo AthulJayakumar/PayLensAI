@@ -11,6 +11,7 @@ from dotenv import load_dotenv
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
 
 from app.api.errors import install_error_handlers
 from app.api.auth import Authenticator, CognitoAuthenticator, DevelopmentApiKeyAuthenticator
@@ -64,6 +65,8 @@ def create_app(
         allow_methods=["GET", "POST", "DELETE", "OPTIONS"],
         allow_headers=["Authorization", "Content-Type", "X-PayLens-Dev-Key", "Stripe-Signature", "X-Request-ID"],
     )
+    # Compress dashboard JSON before it crosses the load balancer and CloudFront.
+    app.add_middleware(GZipMiddleware, minimum_size=1000, compresslevel=5)
     # Persistence is optional locally but configured through injected secrets on ECS.
     database_url = database_url_from_environment()
     engine = create_engine_from_url(database_url) if database_url else None

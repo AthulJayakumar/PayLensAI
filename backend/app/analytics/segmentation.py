@@ -60,3 +60,39 @@ def segment_metrics(
         segment = {dimension.value: value for dimension, value in zip(dimensions, key, strict=True)}
         results.append(SegmentMetrics(segment=segment, metrics=calculate_kpis(groups[key])))
     return results
+
+
+def segment_metrics_by_dimension(
+    transactions: Iterable[PayLensTransaction],
+    dimensions: Sequence[SegmentDimension],
+    *,
+    time_granularity: TimeGranularity = TimeGranularity.MONTH,
+) -> dict[SegmentDimension, list[SegmentMetrics]]:
+    """Build several single-dimension panels with one grouping traversal.
+
+    Each panel still receives exact KPI calculations, but the source list is no
+    longer scanned from the beginning once for every dashboard table.
+    """
+    if not dimensions:
+        return {}
+    if len(set(dimensions)) != len(dimensions):
+        raise ValueError("segment dimensions must be unique")
+
+    grouped: dict[SegmentDimension, defaultdict[str, list[PayLensTransaction]]] = {
+        dimension: defaultdict(list) for dimension in dimensions
+    }
+    for transaction in transactions:
+        for dimension in dimensions:
+            value = segment_value(transaction, dimension, time_granularity)
+            grouped[dimension][value].append(transaction)
+
+    return {
+        dimension: [
+            SegmentMetrics(
+                segment={dimension.value: value},
+                metrics=calculate_kpis(grouped[dimension][value]),
+            )
+            for value in sorted(grouped[dimension])
+        ]
+        for dimension in dimensions
+    }

@@ -77,10 +77,42 @@ export type Insight = {
 export type InsightsResponse = { analysis_id: string; count: number; insights: Insight[] };
 export type SegmentResult = { segment: Record<string, string>; overall: OverallMetrics; currencies: Record<string, CurrencyMetrics> };
 export type SegmentsResponse = { analysis_id: string; dimensions: string[]; segments: SegmentResult[] };
+export type MonthlyFlowPeriod = {
+  period: string;
+  currency: string;
+  transaction_count: number;
+  attempted_value: string;
+  gross_inflow: string;
+  refunds: string;
+  disputed_value: string;
+  processing_fees: string;
+  provider_fees: string;
+  other_costs: string;
+  service_charges: string;
+  money_out: string;
+  total_reductions: string;
+  net_inflow: string;
+};
+export type ProviderCostPeriod = MonthlyFlowPeriod & { provider: string };
+export type CashFlowTotal = Omit<MonthlyFlowPeriod, "period">;
+export type MonthlyCashFlow = {
+  definitions: {
+    gross_inflow: string;
+    money_out: string;
+    service_charges: string;
+    net_inflow: string;
+    currency_policy: string;
+    provider_fee_note: string;
+  };
+  totals: CashFlowTotal[];
+  periods: MonthlyFlowPeriod[];
+  provider_costs: ProviderCostPeriod[];
+};
 export type DashboardResponse = {
   summary: AnalysisSummary;
   kpis: KpiResponse;
   insights: InsightsResponse;
+  monthly_cash_flow: MonthlyCashFlow;
   performance: Record<string, SegmentsResponse>;
 };
 export type Explanation = { what_happened: string; why_it_matters: string; what_to_investigate: string };

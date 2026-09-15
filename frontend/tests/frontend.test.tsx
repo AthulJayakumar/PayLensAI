@@ -9,7 +9,7 @@ import { ProviderConnections } from "../components/ProviderConnections";
 import { ProviderDiagnostics } from "../components/ProviderDiagnostics";
 import LoginPage from "../app/login/page";
 import { fetchAnalysis, PayLensApiError } from "../lib/api";
-import type { AnalysisSummary, Insight, InsightDetailResponse, KpiResponse, SegmentsResponse } from "../lib/api";
+import type { AnalysisSummary, Insight, InsightDetailResponse, KpiResponse, MonthlyCashFlow, SegmentsResponse } from "../lib/api";
 
 const summary: AnalysisSummary = {
   analysis_id: "analysis_test",
@@ -69,6 +69,30 @@ const segments: SegmentsResponse = {
   segments: [{ segment: { provider: "STRIPE" }, overall: kpis.overall, currencies: kpis.currencies }],
 };
 
+const monthlyCashFlow: MonthlyCashFlow = {
+  definitions: {
+    gross_inflow: "Successful gross payment value processed during the month.",
+    money_out: "Recorded refunds plus disputed value; failed attempts are excluded.",
+    service_charges: "Processing fees plus provider fees plus other payment costs.",
+    net_inflow: "Gross inflow minus money out and service charges.",
+    currency_policy: "Every amount is reported per currency; currencies are never combined.",
+    provider_fee_note: "Stripe combined fees are reported as processing fees when separate provider fees are unavailable.",
+  },
+  totals: [
+    { currency: "GBP", transaction_count: 100, attempted_value: "1500", gross_inflow: "1350", refunds: "25", disputed_value: "5", processing_fees: "15", provider_fees: "7", other_costs: "1.5", service_charges: "23.5", money_out: "30", total_reductions: "53.5", net_inflow: "1296.5" },
+    { currency: "USD", transaction_count: 10, attempted_value: "2000", gross_inflow: "1800", refunds: "0", disputed_value: "0", processing_fees: "20", provider_fees: "0", other_costs: "0", service_charges: "20", money_out: "0", total_reductions: "20", net_inflow: "1780" },
+  ],
+  periods: [
+    { period: "2026-06", currency: "GBP", transaction_count: 70, attempted_value: "1000", gross_inflow: "900", refunds: "20", disputed_value: "5", processing_fees: "10", provider_fees: "5", other_costs: "1", service_charges: "16", money_out: "25", total_reductions: "41", net_inflow: "859" },
+    { period: "2026-07", currency: "GBP", transaction_count: 30, attempted_value: "500", gross_inflow: "450", refunds: "5", disputed_value: "0", processing_fees: "5", provider_fees: "2", other_costs: "0.5", service_charges: "7.5", money_out: "5", total_reductions: "12.5", net_inflow: "437.5" },
+    { period: "2026-06", currency: "USD", transaction_count: 10, attempted_value: "2000", gross_inflow: "1800", refunds: "0", disputed_value: "0", processing_fees: "20", provider_fees: "0", other_costs: "0", service_charges: "20", money_out: "0", total_reductions: "20", net_inflow: "1780" },
+  ],
+  provider_costs: [
+    { period: "2026-06", provider: "STRIPE", currency: "GBP", transaction_count: 70, attempted_value: "1000", gross_inflow: "900", refunds: "20", disputed_value: "5", processing_fees: "10", provider_fees: "5", other_costs: "1", service_charges: "16", money_out: "25", total_reductions: "41", net_inflow: "859" },
+    { period: "2026-07", provider: "STRIPE", currency: "GBP", transaction_count: 30, attempted_value: "500", gross_inflow: "450", refunds: "5", disputed_value: "0", processing_fees: "5", provider_fees: "2", other_costs: "0.5", service_charges: "7.5", money_out: "5", total_reductions: "12.5", net_inflow: "437.5" },
+  ],
+};
+
 describe("API gateway response handling", () => {
   it("retries a read once when the gateway temporarily returns HTML", async () => {
     const fetchMock = vi.fn()
@@ -126,13 +150,20 @@ describe("upload workflow", () => {
   });
 });
 
-it("renders the dashboard with currencies kept separate", () => {
-  render(<DashboardView summary={summary} kpis={kpis} insights={[insight]} performance={{ provider: segments, payment_method: segments, card_network: segments, issuer_country: segments }} />);
+it("renders collapsible monthly cash flow with provider charges and currencies kept separate", async () => {
+  const user = userEvent.setup();
+  render(<DashboardView summary={summary} kpis={kpis} insights={[insight]} monthlyCashFlow={monthlyCashFlow} performance={{ provider: segments, payment_method: segments, card_network: segments, issuer_country: segments }} />);
   expect(screen.getByText("Payment performance")).toBeInTheDocument();
+  expect(screen.getByText("Money in, money out and provider charges")).toBeInTheDocument();
+  expect(screen.getByText("£1,350.00")).toBeInTheDocument();
+  expect(screen.getByText("Charges by payment provider")).toBeInTheDocument();
   expect(screen.getAllByText("90.00%").length).toBeGreaterThan(0);
   expect(screen.getByText("£1,000.00")).toBeInTheDocument();
   expect(screen.getByText("US$2,000.00")).toBeInTheDocument();
   expect(screen.getAllByText("Provider performance").length).toBeGreaterThan(0);
+  expect(screen.queryByText("PayLens insights")).not.toBeInTheDocument();
+  await user.click(screen.getByRole("button", { name: /Insights/ }));
+  expect(screen.getByText("PayLens insights")).toBeInTheDocument();
 });
 
 it("renders a severity-ordered insight card with supporting values", () => {

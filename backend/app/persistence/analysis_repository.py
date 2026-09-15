@@ -3,7 +3,11 @@
 from __future__ import annotations
 
 import hashlib
+import os
+from collections import OrderedDict
 from datetime import datetime, timezone
+from threading import RLock
+from time import monotonic
 
 from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
@@ -30,8 +34,47 @@ class PostgreSQLAnalysisRepository(AnalysisRepository):
     """Persist analyses while keeping the API's repository contract unchanged."""
     """Transactional repository; JSONB preserves canonical inputs and insights."""
 
-    def __init__(self, engine) -> None:
+    def __init__(self, engine, *, cache_ttl_seconds: float | None = None, cache_max_entries: int | None = None) -> None:
         self.engine = engine
+        # A short, bounded cache avoids repeating PostgreSQL transfer, Pydantic
+        # validation, and KPI reconstruction every time a user reopens a page.
+        self.cache_ttl_seconds = max(
+            0.0,
+            cache_ttl_seconds if cache_ttl_seconds is not None
+            else float(os.environ.get("PAYLENS_ANALYSIS_CACHE_TTL_SECONDS", "60")),
+        )
+        self.cache_max_entries = max(
+            0,
+            cache_max_entries if cache_max_entries is not None
+            else int(os.environ.get("PAYLENS_ANALYSIS_CACHE_MAX_ENTRIES", "1")),
+        )
+        self._cache: OrderedDict[str, tuple[float, AnalysisRecord]] = OrderedDict()
+        self._cache_lock = RLock()
+
+    def _cached(self, analysis_id: str) -> AnalysisRecord | None:
+        """Return a fresh cached record, removing it when its TTL has elapsed."""
+        if self.cache_ttl_seconds == 0 or self.cache_max_entries == 0:
+            return None
+        with self._cache_lock:
+            cached = self._cache.get(analysis_id)
+            if cached is None:
+                return None
+            cached_at, record = cached
+            if monotonic() - cached_at >= self.cache_ttl_seconds:
+                self._cache.pop(analysis_id, None)
+                return None
+            self._cache.move_to_end(analysis_id)
+            return record
+
+    def _remember(self, record: AnalysisRecord) -> None:
+        """Store one immutable analysis reference and enforce the memory bound."""
+        if self.cache_ttl_seconds == 0 or self.cache_max_entries == 0:
+            return
+        with self._cache_lock:
+            self._cache[record.analysis_id] = (monotonic(), record)
+            self._cache.move_to_end(record.analysis_id)
+            while len(self._cache) > self.cache_max_entries:
+                self._cache.popitem(last=False)
 
     def ensure_merchant(self, merchant_id: str, name: str) -> None:
         with Session(self.engine) as session, session.begin():
@@ -98,9 +141,12 @@ class PostgreSQLAnalysisRepository(AnalysisRepository):
                     existing.payload = payload
                     existing.provider_updated_at = transaction.updated_at_internal
                     existing.updated_at = utcnow()
+        # In single-process/local mode the just-created record can be served
+        # immediately. Deployed API processes independently refresh after TTL.
+        self._remember(analysis)
 
-    def get(self, analysis_id: str) -> AnalysisRecord | None:
-        """Rehydrate validated domain models rather than exposing ORM rows."""
+    def _load_record(self, analysis_id: str) -> AnalysisRecord | None:
+        """Rehydrate validated domain models from PostgreSQL."""
         with Session(self.engine) as session:
             row = session.get(AnalysisRow, analysis_id)
             if row is None:
@@ -134,7 +180,20 @@ class PostgreSQLAnalysisRepository(AnalysisRepository):
                 performance=row.performance,
             )
 
+    def get(self, analysis_id: str) -> AnalysisRecord | None:
+        """Use a bounded hot cache before rebuilding a large analysis from SQL."""
+        cached = self._cached(analysis_id)
+        if cached is not None:
+            return cached
+        record = self._load_record(analysis_id)
+        if record is not None:
+            self._remember(record)
+        return record
+
     def get_for_merchant(self, analysis_id: str, merchant_id: str) -> AnalysisRecord | None:
+        cached = self._cached(analysis_id)
+        if cached is not None:
+            return cached if cached.merchant_id == merchant_id else None
         with Session(self.engine) as session:
             owned = session.scalar(select(AnalysisRow.id).where(
                 AnalysisRow.id == analysis_id, AnalysisRow.merchant_id == merchant_id

@@ -121,6 +121,31 @@ def test_kpi_response_preserves_currency_and_decimal_accuracy(api_context) -> No
     assert "total" not in body["currencies"]
 
 
+def test_dashboard_loads_once_and_matches_existing_resources(api_context, monkeypatch) -> None:
+    client, repository, analysis_id = api_context
+    original = repository.get_for_merchant
+    calls = 0
+
+    def counted_get(requested_analysis_id: str, merchant_id: str):
+        nonlocal calls
+        calls += 1
+        return original(requested_analysis_id, merchant_id)
+
+    monkeypatch.setattr(repository, "get_for_merchant", counted_get)
+    response = client.get(f"/analysis/{analysis_id}/dashboard")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert calls == 1
+    assert body["summary"]["analysis_id"] == analysis_id
+    assert body["kpis"]["overall"]["transaction_count"] == 20_000
+    assert body["insights"]["count"] == len(body["insights"]["insights"])
+    assert set(body["performance"]) == {
+        "provider", "payment_method", "card_network", "issuer_country"
+    }
+    assert all(panel["segments"] for panel in body["performance"].values())
+
+
 def test_segment_combinations_and_validation(api_context) -> None:
     client, _, analysis_id = api_context
     response = client.get(

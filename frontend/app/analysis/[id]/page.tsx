@@ -7,7 +7,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { AppHeader } from "../../../components/AppHeader";
 import { DashboardView } from "../../../components/DashboardView";
-import { AnalysisSummary, fetchAnalysis, fetchInsights, fetchKpis, fetchSegments, Insight, KpiResponse, SegmentsResponse } from "../../../lib/api";
+import { AnalysisSummary, fetchDashboard, Insight, KpiResponse, SegmentsResponse } from "../../../lib/api";
 
 type DashboardData = { summary: AnalysisSummary; kpis: KpiResponse; insights: Insight[]; performance: Record<string, SegmentsResponse>; loadMs: number };
 
@@ -18,14 +18,10 @@ export default function AnalysisPage() {
   const [error, setError] = useState("");
 
   useEffect(() => {
-    // Independent read endpoints are loaded together to minimize dashboard wait time.
+    // The API loads and validates a provider-sized analysis once, then returns every panel.
     const started = performance.now();
-    Promise.all([
-      fetchAnalysis(analysisId), fetchKpis(analysisId), fetchInsights(analysisId),
-      fetchSegments(analysisId, "provider"), fetchSegments(analysisId, "payment_method"),
-      fetchSegments(analysisId, "card_network"), fetchSegments(analysisId, "issuer_country"),
-    ]).then(([summary, kpis, insightResponse, provider, paymentMethod, cardNetwork, issuerCountry]) => {
-      setData({ summary, kpis, insights: insightResponse.insights, performance: { provider, payment_method: paymentMethod, card_network: cardNetwork, issuer_country: issuerCountry }, loadMs: performance.now() - started });
+    fetchDashboard(analysisId).then(({ summary, kpis, insights, performance: segmentPerformance }) => {
+      setData({ summary, kpis, insights: insights.insights, performance: segmentPerformance, loadMs: performance.now() - started });
     }).catch((requestError) => setError(requestError instanceof Error ? requestError.message : "The analysis could not be loaded."));
   }, [analysisId]);
 

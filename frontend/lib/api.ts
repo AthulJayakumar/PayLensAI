@@ -77,6 +77,12 @@ export type Insight = {
 export type InsightsResponse = { analysis_id: string; count: number; insights: Insight[] };
 export type SegmentResult = { segment: Record<string, string>; overall: OverallMetrics; currencies: Record<string, CurrencyMetrics> };
 export type SegmentsResponse = { analysis_id: string; dimensions: string[]; segments: SegmentResult[] };
+export type DashboardResponse = {
+  summary: AnalysisSummary;
+  kpis: KpiResponse;
+  insights: InsightsResponse;
+  performance: Record<string, SegmentsResponse>;
+};
 export type Explanation = { what_happened: string; why_it_matters: string; what_to_investigate: string };
 export type InsightDetailResponse = { analysis_id: string; insight: Insight; explanation: Explanation };
 export type ProviderConnection = {
@@ -216,6 +222,11 @@ export async function waitForJob(jobId: string, intervalMs = 1000): Promise<Asyn
 
 export async function fetchAnalysis(analysisId: string): Promise<AnalysisSummary> {
   return fetchReadOnly(`${API_URL}/analysis/${analysisId}`);
+}
+
+export async function fetchDashboard(analysisId: string): Promise<DashboardResponse> {
+  // One server read replaces seven concurrent full-analysis database reads.
+  return fetchReadOnly(`${API_URL}/analysis/${analysisId}/dashboard`);
 }
 
 export async function fetchKpis(analysisId: string): Promise<KpiResponse> {

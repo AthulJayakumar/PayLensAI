@@ -16,7 +16,7 @@ from app.api.errors import install_error_handlers
 from app.api.auth import Authenticator, CognitoAuthenticator, DevelopmentApiKeyAuthenticator
 from app.api.explanations import ExplanationProvider, TemplateExplanationProvider
 from app.api.repositories import AnalysisRepository, InMemoryAnalysisRepository
-from app.api.routes import analysis, auth_config, health, insights, jobs, kpis, providers, segments, webhooks
+from app.api.routes import analysis, auth_config, dashboard, health, insights, jobs, kpis, providers, segments, webhooks
 from app.api.middleware import SecurityObservabilityMiddleware
 from app.api.services.analysis import AnalysisService, DEFAULT_MAX_UPLOAD_BYTES
 from app.api.services.providers import ProviderService
@@ -164,6 +164,7 @@ def create_app(
     api_prefix = os.environ.get("PAYLENS_API_PREFIX", "")
     app.include_router(auth_config.router, prefix=api_prefix)
     app.include_router(analysis.router, prefix=api_prefix)
+    app.include_router(dashboard.router, prefix=api_prefix)
     app.include_router(kpis.router, prefix=api_prefix)
     app.include_router(segments.router, prefix=api_prefix)
     app.include_router(insights.router, prefix=api_prefix)

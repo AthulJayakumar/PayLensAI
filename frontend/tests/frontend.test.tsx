@@ -8,7 +8,7 @@ import { UploadPanel } from "../components/UploadPanel";
 import { ProviderConnections } from "../components/ProviderConnections";
 import { ProviderDiagnostics } from "../components/ProviderDiagnostics";
 import LoginPage from "../app/login/page";
-import { PayLensApiError } from "../lib/api";
+import { fetchAnalysis, PayLensApiError } from "../lib/api";
 import type { AnalysisSummary, Insight, InsightDetailResponse, KpiResponse, SegmentsResponse } from "../lib/api";
 
 const summary: AnalysisSummary = {
@@ -68,6 +68,38 @@ const segments: SegmentsResponse = {
   dimensions: ["provider"],
   segments: [{ segment: { provider: "STRIPE" }, overall: kpis.overall, currencies: kpis.currencies }],
 };
+
+describe("API gateway response handling", () => {
+  it("retries a read once when the gateway temporarily returns HTML", async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(new Response("<html><h1>503 Service Unavailable</h1></html>", {
+        status: 503,
+        headers: { "Content-Type": "text/html" },
+      }))
+      .mockResolvedValueOnce(new Response(JSON.stringify(summary), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(fetchAnalysis("analysis_test")).resolves.toEqual(summary);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    vi.unstubAllGlobals();
+  });
+
+  it("shows a useful error when a misrouted API read repeatedly returns an HTML page", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockImplementation(async () => new Response("<html>Bad gateway</html>", {
+      status: 200,
+      headers: { "Content-Type": "text/html" },
+    })));
+
+    await expect(fetchAnalysis("analysis_test")).rejects.toMatchObject({
+      code: "UPSTREAM_UNAVAILABLE",
+      message: "PayLens is temporarily unavailable. Please refresh and try again.",
+    });
+    vi.unstubAllGlobals();
+  });
+});
 
 describe("upload workflow", () => {
   it("shows the selected file, loading state, and completion", async () => {

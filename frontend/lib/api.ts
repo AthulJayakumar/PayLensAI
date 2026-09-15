@@ -151,16 +151,47 @@ export class PayLensApiError extends Error {
 }
 
 async function parseResponse<T>(response: Response): Promise<T> {
+  // Read text first because gateways and load balancers can return an HTML error page
+  // while the application normally returns JSON. Calling response.json() directly in
+  // that situation exposes a confusing "Unexpected token '<'" browser error.
+  const rawBody = await response.text();
+  if (response.status === 401 && typeof window !== "undefined") {
+    window.sessionStorage.removeItem("paylens_access_token");
+    throw new PayLensApiError("SESSION_EXPIRED", "Your session expired. Sign in again to continue.");
+  }
+  let body: unknown = null;
+  try {
+    body = rawBody ? JSON.parse(rawBody) : null;
+  } catch {
+    const contentType = response.headers.get("content-type") ?? "";
+    const transient = response.status >= 500 || response.status === 0 || contentType.includes("text/html");
+    throw new PayLensApiError(
+      transient ? "UPSTREAM_UNAVAILABLE" : "INVALID_API_RESPONSE",
+      transient
+        ? "PayLens is temporarily unavailable. Please refresh and try again."
+        : "PayLens received an invalid server response. Please sign in again or try later.",
+    );
+  }
+
   // Convert the API's stable error envelope into one exception shape for all UI callers.
-  const body = await response.json();
   if (!response.ok) {
-    if (response.status === 401 && typeof window !== "undefined") {
-      window.sessionStorage.removeItem("paylens_access_token");
-      throw new PayLensApiError("SESSION_EXPIRED", "Your session expired. Sign in again to continue.");
-    }
-    throw new PayLensApiError(body?.error?.code ?? "API_ERROR", body?.error?.message ?? "PayLens request failed.");
+    const errorBody = body as { error?: { code?: string; message?: string } } | null;
+    throw new PayLensApiError(errorBody?.error?.code ?? "API_ERROR", errorBody?.error?.message ?? "PayLens request failed.");
   }
   return body as T;
+}
+
+async function fetchReadOnly<T>(url: string): Promise<T> {
+  // A GET is safe to repeat. Retry once when CloudFront or the load balancer returns
+  // a temporary 5xx/HTML response; write operations are deliberately never retried.
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    try {
+      return await parseResponse<T>(await fetch(url, requestOptions(authHeaders())));
+    } catch (error) {
+      if (!(error instanceof PayLensApiError) || error.code !== "UPSTREAM_UNAVAILABLE" || attempt === 1) throw error;
+    }
+  }
+  throw new PayLensApiError("UPSTREAM_UNAVAILABLE", "PayLens is temporarily unavailable. Please refresh and try again.");
 }
 
 export async function uploadAnalysis(file: File): Promise<AnalysisSummary | JobResponse> {
@@ -170,7 +201,7 @@ export async function uploadAnalysis(file: File): Promise<AnalysisSummary | JobR
 }
 
 export async function fetchJob(jobId: string): Promise<JobResponse> {
-  return parseResponse(await fetch(`${API_URL}/jobs/${jobId}`, requestOptions(authHeaders())));
+  return fetchReadOnly(`${API_URL}/jobs/${jobId}`);
 }
 
 export async function waitForJob(jobId: string, intervalMs = 1000): Promise<AsyncJob> {
@@ -184,28 +215,28 @@ export async function waitForJob(jobId: string, intervalMs = 1000): Promise<Asyn
 }
 
 export async function fetchAnalysis(analysisId: string): Promise<AnalysisSummary> {
-  return parseResponse(await fetch(`${API_URL}/analysis/${analysisId}`, requestOptions(authHeaders())));
+  return fetchReadOnly(`${API_URL}/analysis/${analysisId}`);
 }
 
 export async function fetchKpis(analysisId: string): Promise<KpiResponse> {
-  return parseResponse(await fetch(`${API_URL}/analysis/${analysisId}/kpis`, requestOptions(authHeaders())));
+  return fetchReadOnly(`${API_URL}/analysis/${analysisId}/kpis`);
 }
 
 export async function fetchSegments(analysisId: string, dimensions: string): Promise<SegmentsResponse> {
   const query = new URLSearchParams({ dimensions });
-  return parseResponse(await fetch(`${API_URL}/analysis/${analysisId}/segments?${query}`, requestOptions(authHeaders())));
+  return fetchReadOnly(`${API_URL}/analysis/${analysisId}/segments?${query}`);
 }
 
 export async function fetchInsights(analysisId: string): Promise<InsightsResponse> {
-  return parseResponse(await fetch(`${API_URL}/analysis/${analysisId}/insights`, requestOptions(authHeaders())));
+  return fetchReadOnly(`${API_URL}/analysis/${analysisId}/insights`);
 }
 
 export async function fetchInsightDetail(analysisId: string, insightId: string): Promise<InsightDetailResponse> {
-  return parseResponse(await fetch(`${API_URL}/analysis/${analysisId}/insights/${insightId}`, requestOptions(authHeaders())));
+  return fetchReadOnly(`${API_URL}/analysis/${analysisId}/insights/${insightId}`);
 }
 
 export async function fetchProviders(): Promise<ProviderStatusResponse> {
-  return parseResponse(await fetch(`${API_URL}/providers`, requestOptions(authHeaders())));
+  return fetchReadOnly(`${API_URL}/providers`);
 }
 
 export async function beginStripeConnection(): Promise<{ authorization_url: string }> {
@@ -225,7 +256,7 @@ export async function syncStripe(): Promise<{ sync_job: SyncJob } | JobResponse>
 }
 
 export async function fetchStripeDiagnostics(): Promise<StripeDiagnosticsResponse> {
-  return parseResponse(await fetch(`${API_URL}/providers/stripe/diagnostics`, requestOptions(authHeaders())));
+  return fetchReadOnly(`${API_URL}/providers/stripe/diagnostics`);
 }
 
 export async function retryJob(jobId: string): Promise<JobResponse> {

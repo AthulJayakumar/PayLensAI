@@ -35,6 +35,10 @@ a { color: inherit; text-decoration: none; }
 .landing-shell { max-width: 1240px; margin: 0 auto; padding: 0 36px 52px; }
 .site-header { height: 88px; display: flex; align-items: center; justify-content: space-between; }
 .landing-nav { display: flex; align-items: center; gap: 10px; }
+.auth-status { display: inline-flex; align-items: center; gap: 9px; }
+.session-label { color: var(--green); font-size: 12px; font-weight: 750; white-space: nowrap; }
+.auth-status .secondary-button, .landing-nav .secondary-button { white-space: nowrap; }
+.auth-status button:focus-visible, .landing-nav a:focus-visible, .app-header a:focus-visible { outline: 3px solid var(--blue); outline-offset: 3px; }
 .brand { display: inline-flex; align-items: center; gap: 11px; font-size: 13px; font-weight: 850; letter-spacing: 0.15em; }
 .brand-mark { display: grid; place-items: center; width: 32px; height: 32px; border-radius: 9px; color: white; background: var(--blue); letter-spacing: 0; box-shadow: 0 8px 20px rgba(49,87,229,.28); }
 .local-badge { color: var(--ink-soft); border: 1px solid var(--line); border-radius: 99px; padding: 7px 12px; background: rgba(255,255,255,.75); font-size: 12px; }
@@ -263,7 +267,10 @@ tbody tr:last-child td { border: 0; }
 .diagnostics-table-wrap td:first-child { max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .empty-jobs { margin: 8px 0 0; font-size: 12px; }
 @media (max-width: 760px) {
-  .landing-nav .secondary-button { display: none; }
+  .site-header, .app-header { height: auto; min-height: 78px; gap: 14px; padding: 14px 0; flex-wrap: wrap; }
+  .landing-nav, .app-header nav { flex-wrap: wrap; justify-content: flex-end; }
+  .analysis-reference { display: none; }
+  .session-label { font-size: 11px; }
   .provider-brand { padding-right: 0; }
   .connection-pill { position: static; display: inline-flex; margin: 20px 0 0 64px; }
   .provider-details, .provider-connect-copy { margin-left: 0; }

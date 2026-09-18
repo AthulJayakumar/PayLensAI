@@ -5,6 +5,7 @@
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { UploadPanel } from "../components/UploadPanel";
+import { AuthStatus } from "../components/AuthStatus";
 
 export default function Home() {
   const router = useRouter();
@@ -17,7 +18,7 @@ export default function Home() {
         </Link>
         <nav className="landing-nav">
           <Link className="secondary-button" href="/providers">Payment providers</Link>
-          <span className="local-badge">Local prototype</span>
+          <AuthStatus />
         </nav>
       </header>
 

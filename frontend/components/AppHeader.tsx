@@ -1,6 +1,7 @@
 /** Shared navigation with optional context for the active analysis. */
 
 import Link from "next/link";
+import { AuthStatus } from "./AuthStatus";
 
 export function AppHeader({ analysisId }: { analysisId?: string }) {
   return (
@@ -12,6 +13,7 @@ export function AppHeader({ analysisId }: { analysisId?: string }) {
         {analysisId && <span className="analysis-reference">{analysisId.slice(0, 20)}…</span>}
         <Link className="secondary-button" href="/providers">Payment providers</Link>
         <Link className="secondary-button" href="/">New analysis</Link>
+        <AuthStatus />
       </nav>
     </header>
   );

@@ -4,6 +4,8 @@
 
 import { FormEvent, useState } from "react";
 import { API_URL } from "../../lib/api";
+import { AppHeader } from "../../components/AppHeader";
+import { safeReturnPath, SESSION_CHANGED, SESSION_KEY } from "../../lib/session";
 
 type AuthMode = "SIGN_IN" | "REQUEST_RESET" | "CONFIRM_RESET";
 type AuthConfig = { region: string; client_id: string };
@@ -68,8 +70,9 @@ export default function LoginPage() {
         AuthParameters: { USERNAME: email, PASSWORD: password },
       });
       if (!result.AuthenticationResult?.AccessToken) throw new Error("Email or password was not accepted.");
-      window.sessionStorage.setItem("paylens_access_token", result.AuthenticationResult.AccessToken);
-      window.location.assign("/");
+      window.sessionStorage.setItem(SESSION_KEY, result.AuthenticationResult.AccessToken);
+      window.dispatchEvent(new Event(SESSION_CHANGED));
+      window.location.assign(safeReturnPath(new URLSearchParams(window.location.search).get("next")));
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Sign in failed."); setBusy(false);
     }
@@ -103,7 +106,7 @@ export default function LoginPage() {
     } finally { setBusy(false); }
   }
 
-  return <main className="app-shell"><section className="upload-card auth-card" aria-label="Sign in">
+  return <main className="app-shell"><AppHeader /><section className="upload-card auth-card" aria-label="Sign in">
     <div className="upload-heading"><span className="status-dot"/><span>PayLens pilot</span></div>
     {mode === "SIGN_IN" && <>
       <h1>Sign in</h1><p>Use the merchant account issued by your PayLens administrator.</p>

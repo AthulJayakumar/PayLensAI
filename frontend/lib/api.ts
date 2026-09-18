@@ -1,11 +1,12 @@
 /** Typed browser client for the PayLens HTTP API. */
+import { clearSession, SESSION_KEY } from "./session";
 
 export const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 const DEV_API_KEY = process.env.NEXT_PUBLIC_PAYLENS_DEV_API_KEY ?? "";
 
 function authHeaders(): HeadersInit {
   // Production uses a short-lived Cognito token; the development key is local-only fallback.
-  const token = typeof window !== "undefined" ? window.sessionStorage.getItem("paylens_access_token") : null;
+  const token = typeof window !== "undefined" ? window.sessionStorage.getItem(SESSION_KEY) : null;
   if (token) return { Authorization: `Bearer ${token}` };
   return DEV_API_KEY ? { "X-PayLens-Dev-Key": DEV_API_KEY } : {};
 }
@@ -214,7 +215,7 @@ async function parseResponse<T>(response: Response): Promise<T> {
   // that situation exposes a confusing "Unexpected token '<'" browser error.
   const rawBody = await response.text();
   if (response.status === 401 && typeof window !== "undefined") {
-    window.sessionStorage.removeItem("paylens_access_token");
+    clearSession();
     throw new PayLensApiError("SESSION_EXPIRED", "Your session expired. Sign in again to continue.");
   }
   let body: unknown = null;

@@ -8,6 +8,8 @@ import { UploadPanel } from "../components/UploadPanel";
 import { ProviderConnections } from "../components/ProviderConnections";
 import { ProviderDiagnostics } from "../components/ProviderDiagnostics";
 import LoginPage from "../app/login/page";
+import { AuthStatus } from "../components/AuthStatus";
+import { hasActiveSession, safeReturnPath, SESSION_CHANGED, SESSION_KEY } from "../lib/session";
 import { fetchAnalysis, PayLensApiError } from "../lib/api";
 import type { AnalysisSummary, Insight, InsightDetailResponse, KpiResponse, MonthlyCashFlow, SegmentsResponse } from "../lib/api";
 
@@ -376,4 +378,30 @@ it("completes the Cognito forgot-password flow without exposing the new password
   expect(requests.some((request) => request.target?.endsWith("ForgotPassword"))).toBe(true);
   expect(requests.some((request) => request.target?.endsWith("ConfirmForgotPassword"))).toBe(true);
   vi.unstubAllGlobals();
+});
+
+it("starts with a sign-in control and shows the current session in the header", async () => {
+  window.sessionStorage.removeItem(SESSION_KEY);
+  const { unmount } = render(<AuthStatus />);
+  expect(screen.getByRole("link", { name: "Sign in" })).toHaveAttribute("href", "/login");
+  unmount();
+
+  const payload = btoa(JSON.stringify({ exp: Math.floor(Date.now() / 1000) + 3600 }));
+  window.sessionStorage.setItem(SESSION_KEY, `header.${payload}.signature`);
+  render(<AuthStatus />);
+  window.dispatchEvent(new Event(SESSION_CHANGED));
+  expect(await screen.findByText("● Signed in")).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Sign out" })).toBeInTheDocument();
+  window.sessionStorage.removeItem(SESSION_KEY);
+});
+
+it("rejects expired sessions and unsafe post-login destinations", () => {
+  const expired = btoa(JSON.stringify({ exp: Math.floor(Date.now() / 1000) - 60 }));
+  window.sessionStorage.setItem(SESSION_KEY, `header.${expired}.signature`);
+  expect(hasActiveSession()).toBe(false);
+  window.sessionStorage.removeItem(SESSION_KEY);
+  expect(safeReturnPath("/analysis/analysis_test?tab=insights")).toBe("/analysis/analysis_test?tab=insights");
+  expect(safeReturnPath("//another-site.example")).toBe("/");
+  expect(safeReturnPath("/\\another-site.example")).toBe("/");
+  expect(safeReturnPath("https://another-site.example")).toBe("/");
 });

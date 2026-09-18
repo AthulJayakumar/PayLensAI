@@ -55,6 +55,10 @@ model does not decide the numbers, whether an anomaly exists, or its severity.
 - PostgreSQL persistence with merchant separation and role-based access.
 - Compressed single-request dashboards with short-lived, bounded analysis caching
   for faster repeat page loads.
+- Insights expand on the analysis page with their evidence and explanation,
+  without opening a second page or making another data request.
+- Canonical payments are saved in bounded bulk upserts during large imports,
+  reducing database round trips while keeping provider-level deduplication.
 - Stripe sandbox/OAuth connection, historical sync, signed webhooks, refunds,
   disputes, reconciliation, diagnostics, and safe failed-job retries.
 - An AWS pilot using ECS, RDS, S3, SQS, Cognito, CloudFront, monitoring,

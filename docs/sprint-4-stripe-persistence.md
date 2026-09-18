@@ -113,6 +113,13 @@ analytics and insight engines. The new analysis is persisted and opens in the
 existing dashboard. The prototype executes synchronization inside the API
 request; a background worker is deferred.
 
+Analysis persistence now writes canonical transactions in bounded batches of
+100 using the existing merchant/provider/provider-transaction identity. A
+repeated provider transaction updates its payload without creating a second
+canonical row. This removes the per-transaction existence query that made
+large imports slow; Stripe network pagination and provider rate limits remain
+separate sources of sync time.
+
 ## Webhooks and reconciliation
 
 `POST /webhooks/stripe` reads untouched bytes and verifies `Stripe-Signature`

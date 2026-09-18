@@ -61,6 +61,11 @@ const insight: Insight = {
   affected_transaction_count: 36,
   confidence: "0.85",
   supporting_metrics: {},
+  explanation: {
+    what_happened: "US Mastercard failures increased.",
+    why_it_matters: "GBP 500 of attempted payment value was affected.",
+    what_to_investigate: "Review issuer-decline patterns.",
+  },
 };
 
 const segments: SegmentsResponse = {
@@ -176,12 +181,21 @@ it("renders collapsible monthly cash flow with provider charges and currencies k
   expect(screen.getByText("PayLens insights")).toBeInTheDocument();
 });
 
-it("renders a severity-ordered insight card with supporting values", () => {
-  render(<InsightsFeed analysisId="analysis_test" insights={[insight]} />);
+it("expands insight evidence on the same page without navigation", async () => {
+  const user = userEvent.setup();
+  render(<InsightsFeed insights={[insight]} />);
   expect(screen.getByText("HIGH")).toBeInTheDocument();
   expect(screen.getByText("US · Mastercard")).toBeInTheDocument();
   expect(screen.getByText(/4.00% → 12.00%/)).toBeInTheDocument();
-  expect(screen.getByRole("link", { name: /View insight/ })).toHaveAttribute("href", "/analysis/analysis_test/insights/ins_test");
+  const disclosure = screen.getByText("Details").closest("details");
+  expect(disclosure).not.toHaveAttribute("open");
+  await user.click(screen.getByText("Details"));
+  expect(disclosure).toHaveAttribute("open");
+  expect(screen.getByText("US Mastercard failures increased.")).toBeInTheDocument();
+  expect(screen.getByText("Review issuer-decline patterns.")).toBeInTheDocument();
+  expect(screen.queryByRole("link", { name: /View insight/ })).not.toBeInTheDocument();
+  await user.click(screen.getByText("Details"));
+  expect(disclosure).not.toHaveAttribute("open");
 });
 
 it("renders insight detail and deterministic explanation", () => {

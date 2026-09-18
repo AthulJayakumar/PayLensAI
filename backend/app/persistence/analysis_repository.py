@@ -10,6 +10,8 @@ from threading import RLock
 from time import monotonic
 
 from sqlalchemy import delete, select
+from sqlalchemy.dialects.postgresql import insert as postgresql_insert
+from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.orm import Session
 
 from app.analytics.kpis import calculate_kpis
@@ -33,6 +35,7 @@ def _aware(value: datetime) -> datetime:
 class PostgreSQLAnalysisRepository(AnalysisRepository):
     """Persist analyses while keeping the API's repository contract unchanged."""
     """Transactional repository; JSONB preserves canonical inputs and insights."""
+    UPSERT_BATCH_SIZE = 100
 
     def __init__(self, engine, *, cache_ttl_seconds: float | None = None, cache_max_entries: int | None = None) -> None:
         self.engine = engine
@@ -118,29 +121,46 @@ class PostgreSQLAnalysisRepository(AnalysisRepository):
                     payload=insight.model_dump(mode="json"),
                 ))
 
-            # Provider identity, not analysis ID, defines canonical uniqueness.
-            for transaction in analysis.transactions:
-                existing = session.scalar(select(CanonicalTransactionRow).where(
-                    CanonicalTransactionRow.merchant_id == analysis.merchant_id,
-                    CanonicalTransactionRow.provider == transaction.provider.value,
-                    CanonicalTransactionRow.provider_transaction_id == transaction.provider_transaction_id,
+            # A single SELECT per payment made large imports network-bound.
+            # Bounded INSERT ... ON CONFLICT batches preserve the same identity
+            # rule with roughly one database round trip per 100 payments.
+            for offset in range(0, len(analysis.transactions), self.UPSERT_BATCH_SIZE):
+                batch = analysis.transactions[offset:offset + self.UPSERT_BATCH_SIZE]
+                # A re-delivered provider ID can occur within one input batch;
+                # the latest copy wins before PostgreSQL processes the statement.
+                values_by_key: dict[tuple[str, str], dict] = {}
+                for transaction in batch:
+                    provider = transaction.provider.value
+                    values_by_key[(provider, transaction.provider_transaction_id)] = {
+                        "id": "ctx_" + hashlib.sha256(
+                            f"{analysis.merchant_id}:{transaction.id}".encode()
+                        ).hexdigest()[:40],
+                        "merchant_id": analysis.merchant_id,
+                        "analysis_id": analysis.analysis_id,
+                        "provider": provider,
+                        "provider_transaction_id": transaction.provider_transaction_id,
+                        "provider_updated_at": transaction.updated_at_internal,
+                        "payload": transaction.model_copy(
+                            update={"merchant_id": analysis.merchant_id}
+                        ).model_dump(mode="json"),
+                        "created_at": utcnow(),
+                        "updated_at": utcnow(),
+                    }
+                insert = (
+                    sqlite_insert(CanonicalTransactionRow)
+                    if session.bind.dialect.name == "sqlite"
+                    else postgresql_insert(CanonicalTransactionRow)
+                )
+                statement = insert.values(list(values_by_key.values()))
+                session.execute(statement.on_conflict_do_update(
+                    index_elements=["merchant_id", "provider", "provider_transaction_id"],
+                    set_={
+                        "analysis_id": statement.excluded.analysis_id,
+                        "payload": statement.excluded.payload,
+                        "provider_updated_at": statement.excluded.provider_updated_at,
+                        "updated_at": statement.excluded.updated_at,
+                    },
                 ))
-                payload = transaction.model_copy(update={"merchant_id": analysis.merchant_id}).model_dump(mode="json")
-                if existing is None:
-                    session.add(CanonicalTransactionRow(
-                        id="ctx_" + hashlib.sha256(f"{analysis.merchant_id}:{transaction.id}".encode()).hexdigest()[:40],
-                        merchant_id=analysis.merchant_id,
-                        analysis_id=analysis.analysis_id,
-                        provider=transaction.provider.value,
-                        provider_transaction_id=transaction.provider_transaction_id,
-                        provider_updated_at=transaction.updated_at_internal,
-                        payload=payload,
-                    ))
-                else:
-                    existing.analysis_id = analysis.analysis_id
-                    existing.payload = payload
-                    existing.provider_updated_at = transaction.updated_at_internal
-                    existing.updated_at = utcnow()
         # In single-process/local mode the just-created record can be served
         # immediately. Deployed API processes independently refresh after TTL.
         self._remember(analysis)

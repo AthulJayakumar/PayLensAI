@@ -63,7 +63,7 @@ export function DashboardView({ summary, kpis, insights, monthlyCashFlow, perfor
         </ExpandableSection>
 
         <ExpandableSection title="Insights" description="Deterministic anomalies and opportunities, ordered by severity" badge={`${insights.length} findings`}>
-          <InsightsFeed analysisId={summary.analysis_id} insights={insights} />
+          <InsightsFeed insights={insights} />
         </ExpandableSection>
       </div>
     </>

@@ -5,7 +5,8 @@ from fastapi import APIRouter, Depends
 from app.analytics.cash_flow import monthly_cash_flow
 from app.analytics.models import SegmentDimension, SegmentMetrics
 from app.analytics.segmentation import segment_metrics_by_dimension
-from app.api.dependencies import require_analysis
+from app.api.dependencies import get_explanation_provider, require_analysis
+from app.api.explanations import ExplanationProvider
 from app.api.repositories import AnalysisRecord
 from app.api.routes.analysis import analysis_summary
 from app.api.routes.insights import SEVERITY_ORDER
@@ -38,7 +39,10 @@ def _segments(
 
 
 @router.get("/{analysis_id}/dashboard")
-def get_dashboard(record: AnalysisRecord = Depends(require_analysis)) -> dict:
+def get_dashboard(
+    record: AnalysisRecord = Depends(require_analysis),
+    explanation_provider: ExplanationProvider = Depends(get_explanation_provider),
+) -> dict:
     """Return every dashboard panel after loading the persisted analysis once.
 
     The former browser workflow made seven concurrent requests. Each request
@@ -60,7 +64,12 @@ def get_dashboard(record: AnalysisRecord = Depends(require_analysis)) -> dict:
         "insights": {
             "analysis_id": record.analysis_id,
             "count": len(insights),
-            "insights": [insight_payload(item) for item in insights],
+            # Include deterministic descriptions once so expanding a finding
+            # does not reload the entire persisted analysis from PostgreSQL.
+            "insights": [
+                {**insight_payload(item), "explanation": explanation_provider.explain(item).model_dump()}
+                for item in insights
+            ],
         },
         # Cash flow is accumulated once and kept per currency and provider.
         "monthly_cash_flow": monthly_cash_flow(record.transactions),

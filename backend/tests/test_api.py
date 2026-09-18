@@ -142,6 +142,10 @@ def test_dashboard_loads_once_and_matches_existing_resources(api_context, monkey
     assert body["summary"]["analysis_id"] == analysis_id
     assert body["kpis"]["overall"]["transaction_count"] == 20_000
     assert body["insights"]["count"] == len(body["insights"]["insights"])
+    assert all(
+        set(item["explanation"]) == {"what_happened", "why_it_matters", "what_to_investigate"}
+        for item in body["insights"]["insights"]
+    )
     assert body["monthly_cash_flow"]["periods"]
     for period in body["monthly_cash_flow"]["periods"]:
         assert Decimal(period["service_charges"]) == (

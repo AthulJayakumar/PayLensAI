@@ -598,6 +598,27 @@ def test_postgresql_repository_persists_owned_analysis(transaction_factory) -> N
 
 
 @pytest.mark.skipif(not os.environ.get("PAYLENS_TEST_DATABASE_URL"), reason="PostgreSQL integration URL not configured")
+def test_postgresql_bulk_upsert_crosses_batch_boundary(transaction_factory) -> None:
+    engine = create_engine_from_url(os.environ["PAYLENS_TEST_DATABASE_URL"])
+    Base.metadata.create_all(engine)
+    unique = hashlib.sha256(str(time.time_ns()).encode()).hexdigest()[:12]
+    merchant = AuthenticatedMerchant(merchant_id=f"merchant_bulk_{unique}", name="Bulk Merchant")
+    repository = PostgreSQLAnalysisRepository(engine)
+    transactions = [transaction_factory(
+        id=f"ptx_bulk_{unique}_{index}", merchant_id=merchant.merchant_id,
+        provider_transaction_id=f"pi_bulk_{unique}_{index}",
+    ) for index in range(205)]
+
+    record = AnalysisService(repository).create_from_transactions(
+        transactions, merchant, filename="postgres-bulk", source="STRIPE"
+    )
+    reader = PostgreSQLAnalysisRepository(engine, cache_ttl_seconds=0)
+    loaded = reader.get_for_merchant(record.analysis_id, merchant.merchant_id)
+    assert loaded is not None
+    assert loaded.result.transaction_count == 205
+
+
+@pytest.mark.skipif(not os.environ.get("PAYLENS_TEST_DATABASE_URL"), reason="PostgreSQL integration URL not configured")
 def test_postgresql_provider_credentials_are_ciphertext() -> None:
     engine = create_engine_from_url(os.environ["PAYLENS_TEST_DATABASE_URL"])
     Base.metadata.create_all(engine)

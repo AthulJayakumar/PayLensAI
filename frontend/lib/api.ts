@@ -72,6 +72,8 @@ export type Insight = {
   affected_transaction_count: number;
   confidence: string;
   supporting_metrics: Record<string, string | number>;
+  /** Included in dashboards so expanding a finding needs no second request. */
+  explanation?: Explanation;
 };
 
 export type InsightsResponse = { analysis_id: string; count: number; insights: Insight[] };
